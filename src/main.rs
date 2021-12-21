@@ -15,6 +15,9 @@ use std::ptr;
 use std::ffi::*;
 use core::iter::*;
 
+// OWN MODULES
+mod beagle_math;
+
 fn main() {
     println!("Hello, world!");
 
@@ -256,6 +259,22 @@ fn main() {
                 DispatchMessageW(&current_message);
             } else {
                 // GAME LOOP
+
+                // RENDER
+                let clear_color = beagle_math::Vector4::new(0.45, 0.6, 0.95, 1.0);
+
+                dx_device_context.ClearRenderTargetView(
+                    &back_buffer_render_target_view, &clear_color.as_array()[0]);
+
+                dx_device_context.ClearDepthStencilView(
+                    &depth_buffer_view,
+                    (D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL) as u32, 
+                    1.0, 
+                    0);
+
+                if swap_chain.Present(1, 0).is_err() {
+                    panic!("Failed to present!");
+                }
             }
         }
     }
