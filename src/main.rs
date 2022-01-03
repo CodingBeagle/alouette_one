@@ -33,6 +33,19 @@ fn main() {
     println!("Hello, world!");
 
     unsafe {
+        /*
+        Current plan:
+
+        For each mesh:
+
+        read vertex position data
+        -> use accessor -> bufferview
+
+        read indice data
+        -> use accessor -> bufferview
+        
+        */
+
         // TODO: Read up on purpose of Base64 with binary data.
         let decoded_binary = base64::decode("AACAPwAAgD8AAIC/AACAPwAAgL8AAIC/AACAPwAAgD8AAIA/AACAPwAAgL8AAIA/AACAvwAAgD8AAIC/AACAvwAAgL8AAIC/AACAvwAAgD8AAIA/AACAvwAAgL8AAIA/AAAEAAYAAAAGAAIAAwACAAYAAwAGAAcABwAGAAQABwAEAAUABQABAAMABQADAAcAAQAAAAIAAQACAAMABQAEAAAABQAAAAEA");
 
