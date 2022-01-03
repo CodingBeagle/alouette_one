@@ -13,15 +13,51 @@ use windows::{
 use std::{mem::{size_of}, os::windows::prelude::OsStrExt};
 use std::ptr;
 use std::ffi::*;
+use std::slice::*;
 use core::iter::*;
+
+extern crate base64;
+use byteorder::{LittleEndian, ByteOrder};
 
 // OWN MODULES
 mod beagle_math;
+
+#[derive(Debug)]
+struct tester {
+    x: f32,
+    y: f32,
+    z: f32
+}
 
 fn main() {
     println!("Hello, world!");
 
     unsafe {
+        // TODO: Read up on purpose of Base64 with binary data.
+        let decoded_binary = base64::decode("AACAPwAAgD8AAIC/AACAPwAAgL8AAIC/AACAPwAAgD8AAIA/AACAPwAAgL8AAIA/AACAvwAAgD8AAIC/AACAvwAAgL8AAIC/AACAvwAAgD8AAIA/AACAvwAAgL8AAIA/AAAEAAYAAAAGAAIAAwACAAYAAwAGAAcABwAGAAQABwAEAAUABQABAAMABQADAAcAAQAAAAIAAQACAAMABQAEAAAABQAAAAEA");
+
+        let the_decoded_result = decoded_binary.unwrap();
+
+        let mut final_result : Vec<tester> = vec!();
+
+        let stuff = &the_decoded_result[0..96];
+
+        // TODO: Definitely read up on all the ways to loop over an array
+        for (i, val) in stuff.iter().enumerate().step_by(12)
+        {
+            let x_offset = i;
+            let y_offset = x_offset + 4;
+            let z_offset = y_offset + 4;
+
+            final_result.push( tester {
+                x: LittleEndian::read_f32(&the_decoded_result[x_offset..y_offset]),
+                y: LittleEndian::read_f32(&the_decoded_result[y_offset..z_offset]),
+                z: LittleEndian::read_f32(&the_decoded_result[z_offset..(z_offset+4)])
+            } );
+        }
+
+        println!("{:?}", final_result);
+
         // Retrieve module handle (a module being either a .exe file or DLL) for the .exe file.
         // When GetModuleHandleW is called with "None", it returns a handle for the .exe file.
         let h_instance = LibraryLoader::GetModuleHandleW(None);
@@ -338,6 +374,8 @@ fn create_swap_chain_description(main_window: isize) -> DXGI_SWAP_CHAIN_DESC {
         // DXGI_SWAP_EFFECT_DISCARD simply means that the display driver will select the most
         // efficient presentation technique for the swap chain.
         // Also means that the content of the back buffer is discarded after present.
+        // TODO: Getting a DXGI warning using DXGI_SWAP_EFFECT_DISCARD.
+        // Apparently this is a legacy swap effect that is superceded by new "flip-models"... gotta read up on this.
         swap_chain_description.SwapEffect = DXGI_SWAP_EFFECT_DISCARD;
 
         swap_chain_description
