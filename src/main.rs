@@ -10,7 +10,7 @@ use windows::{
     }, core::Interface  
 };
 
-use std::{mem::{size_of}, os::windows::prelude::OsStrExt};
+use std::{mem::{size_of, self}, os::windows::prelude::OsStrExt, env, fs};
 use std::ptr;
 use std::ffi::*;
 use std::slice::*;
@@ -27,6 +27,22 @@ struct tester {
     x: f32,
     y: f32,
     z: f32
+}
+
+#[derive(Default)]
+struct Camera {
+    position: beagle_math::Vector3,
+    orientation: beagle_math::Vector3
+}
+
+impl Camera {
+    fn view_matrix(&self) -> beagle_math::Mat4 {
+        beagle_math::Mat4::translate(&beagle_math::Vector3::new(self.position.x * -0.1, self.position.y * -1.0, self.position.z * -1.0))
+    }
+}
+
+struct VertexConstantBuffer {
+    worldViewProjection: beagle_math::Mat4
 }
 
 fn main() {
@@ -62,6 +78,7 @@ fn main() {
             let y_offset = x_offset + 4;
             let z_offset = y_offset + 4;
 
+            // TODO: Read up on little endian vs big endian
             final_result.push( tester {
                 x: LittleEndian::read_f32(&the_decoded_result[x_offset..y_offset]),
                 y: LittleEndian::read_f32(&the_decoded_result[y_offset..z_offset]),
@@ -283,8 +300,185 @@ fn main() {
         // TODO: Exercise - Enumerate through the available outputs (monitors) for an adapter. Use IDXGIAdapter::EnumOutputs.
         // TODO: Exercise - Each output has a lit of supported display modes. For each of them, list width, height, refresh rate, pixel format, etc...
 
-        let mut should_quit = false;
+        let mut box_vertices: [f32; 12] = [
+            -5.5,  5.5, 30.0,
+             5.5,  5.5, 30.0,
+            -5.5, -5.5, 30.0,
+             5.5, -5.5, 30.0
+        ];
 
+        // https://docs.microsoft.com/en-us/windows/win32/api/d3d11/ns-d3d11-d3d11_buffer_desc
+        // D3D11_BUFFER_DESC is used to describe the buffer we want to upload data to
+        let mut vertex_buffer_description = D3D11_BUFFER_DESC::default();
+        vertex_buffer_description.ByteWidth = (mem::size_of::<f32>() * box_vertices.len()) as u32;
+        vertex_buffer_description.Usage = D3D11_USAGE_DEFAULT;
+        vertex_buffer_description.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+
+        // D3D11_SUBRESOURCE_DATA is used to supply the data we want to initialize a buffer with
+        let mut vertex_buffer_data = D3D11_SUBRESOURCE_DATA::default();
+        vertex_buffer_data.pSysMem = box_vertices.as_ptr() as *mut c_void;
+
+        let mut vertex_buffer =
+            match dx_device.CreateBuffer(&vertex_buffer_description, &vertex_buffer_data) {
+                Ok(buffer) => Some(buffer),
+                Err(err) => panic!("Failed to create vertex buffer: {}", err)
+            };
+
+        // After we have a vertex buffer, it needs to be bound to an INPUT SLOT, to feed the vertices to the pipeline as input.
+        let size_of_vertex_struct = (mem::size_of::<f32>() * 3) as u32;
+        let p_offsets = 0;
+        
+        dx_device_context.IASetVertexBuffers(
+            0,
+            1,
+            &vertex_buffer,
+            &size_of_vertex_struct,
+            &p_offsets);
+
+        // TODO: Read up on this whole layout object thing again...
+        let semantic_name_position = CString::new("POSITION").unwrap();
+
+        let input_element_descriptions = [
+            D3D11_INPUT_ELEMENT_DESC {
+                SemanticName: PSTR(semantic_name_position.as_ptr() as *mut u8),
+                SemanticIndex: 0,
+                Format: DXGI_FORMAT_R32G32B32_FLOAT,
+                InputSlot: 0,
+                AlignedByteOffset: D3D11_APPEND_ALIGNED_ELEMENT,
+                InputSlotClass: D3D11_INPUT_PER_VERTEX_DATA,
+                InstanceDataStepRate: 0
+            }
+        ];
+
+        let current_executable_path = env::current_exe().unwrap();
+        let path_to_vertex_shader = current_executable_path.parent().unwrap().join("resources\\shaders\\compiled-vertex.shader");
+
+        let compiled_vertex_shader_code = fs::read(path_to_vertex_shader).unwrap();
+
+        // CreateInputLayout requires the compiled vertex shader code.
+        // This is because it will actually validate the input signature of the VS function to your element descriptions, to see
+        // If it fits.
+        let input_layout_object = match dx_device.CreateInputLayout(
+            input_element_descriptions.as_ptr(),
+            1,
+            compiled_vertex_shader_code.as_ptr() as *const c_void,
+            compiled_vertex_shader_code.len()) {
+                Ok(ilo) => ilo,
+                Err(err) => panic!("Failed to create InputLayoutObject: {}", err)
+            };
+
+        dx_device_context.IASetInputLayout(input_layout_object);
+
+        // We must tell the IA stage how to assemble the vertices into primitives.
+        // You do this by specifying a "primitive type" through the Primitive Topology method.
+        dx_device_context.IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+
+        // Create an index buffer
+        // https://docs.microsoft.com/en-us/windows/win32/direct3d11/overviews-direct3d-11-resources-buffers-index-how-to
+        // An Index Buffer is simply a buffer which contains indices into a vertex buffer. It's used to render primitives more efficiently.
+        let mut indices: Vec<i32> = vec![
+            0, 1, 2,
+            1, 3, 2,
+        ];
+
+        let mut index_buffer_description = D3D11_BUFFER_DESC::default();
+        index_buffer_description.ByteWidth = (mem::size_of::<i32>() * indices.len()) as u32;
+        index_buffer_description.Usage = D3D11_USAGE_DEFAULT;
+        index_buffer_description.BindFlags = D3D11_BIND_INDEX_BUFFER;
+
+        let mut index_buffer_data = D3D11_SUBRESOURCE_DATA::default();
+        index_buffer_data.pSysMem = indices.as_mut_ptr() as *mut c_void;
+
+        let index_buffer = match dx_device.CreateBuffer(&index_buffer_description, &index_buffer_data) {
+            Ok(id) => id,
+            Err(err) => panic!("Failed to create index buffer: {}", err)
+        };
+
+        dx_device_context.IASetIndexBuffer(index_buffer, DXGI_FORMAT_R32_UINT, 0);
+
+        // Create vertex shader and pixel shader
+        let path_to_pixel_shader = current_executable_path.parent().unwrap().join("resources\\shaders\\compiled-pixel.shader");
+        let compiled_pixel_shader_code = fs::read(path_to_pixel_shader).unwrap();
+
+        let vertex_shader = match dx_device.CreateVertexShader(
+            compiled_vertex_shader_code.as_ptr() as *const c_void, compiled_vertex_shader_code.len(), None) {
+                Ok(vs) => vs,
+                Err(err) => panic!("Failed to create vertex shader: {}", err)
+            };
+
+        let pixel_shader = match dx_device.CreatePixelShader(
+            compiled_pixel_shader_code.as_ptr() as *const c_void, compiled_pixel_shader_code.len(), None) {
+                Ok(ps) => ps,
+                Err(err) => panic!("Failed to create pixel shader: {}", err)
+            };
+
+        // A vertex shader must always be active for the pipeline to execute
+        dx_device_context.VSSetShader(vertex_shader, ptr::null(), 0);
+
+        dx_device_context.PSSetShader(pixel_shader, ptr::null(), 0);
+
+        // Create Rasterizer state
+        // TODO: Definitely read more up on this
+        // https://docs.microsoft.com/en-us/windows/win32/api/d3d11/ns-d3d11-d3d11_rasterizer_desc
+        let mut rasterizer_description = D3D11_RASTERIZER_DESC::default();
+        rasterizer_description.FillMode = D3D11_FILL_SOLID;
+        rasterizer_description.CullMode = D3D11_CULL_BACK;
+        rasterizer_description.FrontCounterClockwise = BOOL(0);
+        rasterizer_description.ScissorEnable = BOOL(0);
+        rasterizer_description.DepthClipEnable = BOOL(1);
+        rasterizer_description.MultisampleEnable = BOOL(0);
+
+        let rasterizer_state = dx_device.CreateRasterizerState(&rasterizer_description).unwrap();
+
+        dx_device_context.RSSetState(rasterizer_state);
+
+        // The viewport is used by DirectX in the Rasterizer stage, in order to map Normalizerd Device Coordinates Into
+        // a 2D surface render target.
+        let viewport = D3D11_VIEWPORT {
+            Height: 600.0,
+            Width: 800.0,
+            MinDepth: 0.0,
+            MaxDepth: 1.0,
+            TopLeftX: 0.0,
+            TopLeftY: 0.0
+        };
+
+        dx_device_context.RSSetViewports(1, &viewport);
+
+        // Create constant buffer which will be used to upload the world and view matrix to the Vertex shader
+        let mut vertex_constant_buffer_description = D3D11_BUFFER_DESC::default();
+        vertex_constant_buffer_description.ByteWidth = mem::size_of::<VertexConstantBuffer>() as u32;
+
+        // A constant buffer should be DYNAMIC, as it should be accessible by the GPU and the CPU.
+        // Resources with D3D11_USAGE_DYNAMIC cannot be used as destination resources for the UpdateSubresource method.
+        // So, if you want to change the content of a D3D11_USAGE_DYNAMIC buffer, use the Map method instead.
+        vertex_constant_buffer_description.Usage = D3D11_USAGE_DYNAMIC;
+
+        // We indicate that the buffer should be a constant buffer. These can be used to supply
+        // Shader constants to the vertex shader.
+        vertex_constant_buffer_description.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+
+        // We need the CPU to have WRITE ACCESS, so that the CPU can change its contants
+        vertex_constant_buffer_description.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+
+        let mut world_view_projection_matrix = VertexConstantBuffer {
+            worldViewProjection: beagle_math::Mat4::projection((45.0f32).to_radians(), 800.0, 600.0, 0.1, 100.0)
+        };
+
+        world_view_projection_matrix.worldViewProjection.tranpose();
+
+        let identity_matrix = D3D11_SUBRESOURCE_DATA {
+            pSysMem: &mut world_view_projection_matrix as *mut _ as *mut c_void,
+            SysMemPitch: 0,
+            SysMemSlicePitch: 0
+        };
+
+        let mut vertex_constant_buffer = dx_device.CreateBuffer(&vertex_constant_buffer_description, &identity_matrix).ok();
+        dx_device_context.VSSetConstantBuffers(0, 1, &mut vertex_constant_buffer);
+
+        let mut camera = Camera::default();
+
+        let mut should_quit = false;
         let mut current_message = MSG::default();
 
         while !should_quit {
@@ -312,6 +506,25 @@ fn main() {
                 // RENDER
                 let clear_color = beagle_math::Vector4::new(0.45, 0.6, 0.95, 1.0);
 
+                // Update vertex constant buffer for world matrix.
+                // The "Map" method retrieves a pointer to the data contained in a subresource (such as our constant buffer), and we can then use
+                // That pointer to update its data.
+                // When you call the Map method, the GPU will have its access to that subresource denied.
+                let lol = vertex_constant_buffer.as_ref().unwrap();
+                let mapped_resource = dx_device_context.Map(lol, 0, D3D11_MAP_WRITE_DISCARD, 0);
+
+                if mapped_resource.is_err() {
+                    panic!("Failed to retrieve mapped resource for world matrix!");
+                }
+
+                let rofl = mapped_resource.unwrap().pData as *mut VertexConstantBuffer;
+                (*rofl).worldViewProjection = beagle_math::Mat4::projection((45.0f32).to_radians(), 800.0, 600.0, 0.1, 100.0).mul(&camera.view_matrix());
+                (*rofl).worldViewProjection.tranpose();
+
+                // After we're done mapping new data, we have to call Unmap in order to invalidate the pointer to the buffer
+                // And reeanble the GPU's access to that resource
+                dx_device_context.Unmap(lol, 0);
+
                 dx_device_context.ClearRenderTargetView(
                     &back_buffer_render_target_view, &clear_color.as_array()[0]);
 
@@ -320,6 +533,8 @@ fn main() {
                     (D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL) as u32, 
                     1.0, 
                     0);
+
+                dx_device_context.DrawIndexed(indices.len() as u32, 0, 0);
 
                 if swap_chain.Present(1, 0).is_err() {
                     panic!("Failed to present!");
