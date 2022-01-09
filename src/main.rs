@@ -13,11 +13,11 @@ use windows::{
 use std::{mem::{size_of, self}, os::windows::prelude::OsStrExt, env, fs};
 use std::ptr;
 use std::ffi::*;
-use std::slice::*;
 use core::iter::*;
 
 extern crate base64;
-use byteorder::{LittleEndian, ByteOrder};
+
+use serde::{Serialize, Deserialize};
 
 // OWN MODULES
 mod beagle_math;
@@ -45,48 +45,88 @@ struct VertexConstantBuffer {
     worldViewProjection: beagle_math::Mat4
 }
 
+#[derive(Serialize, Deserialize, Debug)]
+struct GLTF {
+    meshes: Vec<Mesh>,
+    accessors: Vec<Accessor>
+}
+
+/*
+    An Accessor defines a method for retrieving data as typed arrays
+    from within a "Buffer View".
+
+    The Accessor will specify things such as the component type, data type,
+    the number of elements, etc...
+*/
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+struct Accessor {
+    // A reference index to the buffer view containing the corresponding data
+    buffer_view: u32,
+    // The data type of each individual value (component)
+    // 5126 = float, 32 bits, 4 bytes
+    component_type: u32,
+    // Count is the number of elements in the buffer
+    count: u32,
+    // The type of element that components are described as.
+    // VEC3 = 3 components
+    #[serde(rename = "type")]
+    element_type: String
+}
+
+/*
+    A "Buffer View" represents a contiguous segment of data
+    in a buffer. You can have multiple buffer views into the same
+    underlying buffer.
+*/
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+struct BufferView {
+    // A reference index to an underlying buffer.
+    buffer: u32,
+    // The amount of bytes in the buffer that this view cares about
+    byte_length: u32,
+    // The start offset in bytes for this buffer view.
+    byte_offset: u32
+}
+
+/*
+    Meshes in GLTF represents the data required for GPU draw calls.
+*/
+#[derive(Serialize, Deserialize, Debug)]
+struct Mesh {
+    name: String,
+    primitives: Vec<Primitive>
+}
+
+/*
+    Primitives are the actual structures that describes the data
+    needed in order to make a GPU draw call for that primitive.
+*/
+#[derive(Serialize, Deserialize, Debug)]
+struct Primitive {
+    /*
+        Each attribute is a value to an index of an accessor which
+        contains the data for the attribute.
+    */
+    attributes: Attribute,
+    /*
+        Primitives that are indexed defines this indices property.
+        This value is a reference to an accessor containing the corresponding data.
+    */
+    indices: u32
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct Attribute {
+    #[serde(rename = "POSITION")]
+    position: u32
+}
+
 fn main() {
-    println!("Hello, world!");
-
     unsafe {
-        /*
-        Current plan:
-
-        For each mesh:
-
-        read vertex position data
-        -> use accessor -> bufferview
-
-        read indice data
-        -> use accessor -> bufferview
-        
-        */
-
-        // TODO: Read up on purpose of Base64 with binary data.
-        let decoded_binary = base64::decode("AACAPwAAgD8AAIC/AACAPwAAgL8AAIC/AACAPwAAgD8AAIA/AACAPwAAgL8AAIA/AACAvwAAgD8AAIC/AACAvwAAgL8AAIC/AACAvwAAgD8AAIA/AACAvwAAgL8AAIA/AAAEAAYAAAAGAAIAAwACAAYAAwAGAAcABwAGAAQABwAEAAUABQABAAMABQADAAcAAQAAAAIAAQACAAMABQAEAAAABQAAAAEA");
-
-        let the_decoded_result = decoded_binary.unwrap();
-
-        let mut final_result : Vec<tester> = vec!();
-
-        let stuff = &the_decoded_result[0..96];
-
-        // TODO: Definitely read up on all the ways to loop over an array
-        for (i, val) in stuff.iter().enumerate().step_by(12)
-        {
-            let x_offset = i;
-            let y_offset = x_offset + 4;
-            let z_offset = y_offset + 4;
-
-            // TODO: Read up on little endian vs big endian
-            final_result.push( tester {
-                x: LittleEndian::read_f32(&the_decoded_result[x_offset..y_offset]),
-                y: LittleEndian::read_f32(&the_decoded_result[y_offset..z_offset]),
-                z: LittleEndian::read_f32(&the_decoded_result[z_offset..(z_offset+4)])
-            } );
-        }
-
-        println!("{:?}", final_result);
+        // Path to working directory of executable when running the application
+        let current_executable_path = env::current_exe().unwrap();
 
         // Retrieve module handle (a module being either a .exe file or DLL) for the .exe file.
         // When GetModuleHandleW is called with "None", it returns a handle for the .exe file.
@@ -300,6 +340,12 @@ fn main() {
         // TODO: Exercise - Enumerate through the available outputs (monitors) for an adapter. Use IDXGIAdapter::EnumOutputs.
         // TODO: Exercise - Each output has a lit of supported display modes. For each of them, list width, height, refresh rate, pixel format, etc...
 
+        let path_to_mesh = current_executable_path.parent().unwrap().join("resources\\plane\\plane.gltf");
+
+        let json = fs::read_to_string(path_to_mesh).unwrap();
+
+        let deserialized: GLTF = serde_json::from_str(&json).unwrap();
+
         let mut box_vertices: [f32; 12] = [
             -5.5,  5.5, 30.0,
              5.5,  5.5, 30.0,
@@ -350,7 +396,6 @@ fn main() {
             }
         ];
 
-        let current_executable_path = env::current_exe().unwrap();
         let path_to_vertex_shader = current_executable_path.parent().unwrap().join("resources\\shaders\\compiled-vertex.shader");
 
         let compiled_vertex_shader_code = fs::read(path_to_vertex_shader).unwrap();
