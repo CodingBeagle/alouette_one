@@ -46,9 +46,12 @@ struct VertexConstantBuffer {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
 struct GLTF {
     meshes: Vec<Mesh>,
-    accessors: Vec<Accessor>
+    accessors: Vec<Accessor>,
+    buffer_views: Vec<BufferView>,
+    buffers: Vec<Buffer>
 }
 
 /*
@@ -90,6 +93,13 @@ struct BufferView {
     byte_offset: u32
 }
 
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+struct Buffer {
+    byte_length: u32,
+    uri: String
+}
+
 /*
     Meshes in GLTF represents the data required for GPU draw calls.
 */
@@ -98,6 +108,7 @@ struct Mesh {
     name: String,
     primitives: Vec<Primitive>
 }
+
 
 /*
     Primitives are the actual structures that describes the data
