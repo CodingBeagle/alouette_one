@@ -7,10 +7,10 @@ use windows::{
         Graphics::Direct3D11::*,
         Graphics::Dxgi::*,
         Graphics::Dxgi::Common::*,
-    }, core::Interface  
+    }, core::{Interface, DefaultType}  
 };
 
-use std::{mem::{size_of, self}, os::windows::prelude::OsStrExt, env, fs};
+use std::{mem::{size_of, self}, os::windows::prelude::OsStrExt, env, fs, path::PathBuf};
 use std::ptr;
 use std::ffi::*;
 use core::iter::*;
@@ -353,6 +353,8 @@ fn main() {
 
         let path_to_mesh = current_executable_path.parent().unwrap().join("resources\\plane\\plane.gltf");
 
+        load_model(&path_to_mesh);
+
         let json = fs::read_to_string(path_to_mesh).unwrap();
 
         let deserialized: GLTF = serde_json::from_str(&json).unwrap();
@@ -598,6 +600,52 @@ fn main() {
             }
         }
     }
+}
+
+struct RawMesh {
+    // TODO fji
+    vertex_buffer: ID3D11Buffer,
+    input_layout: ID3D11InputLayout
+}
+
+fn load_model(gltf_file_path: &PathBuf) -> Option<RawMesh> {
+    let gltf_file_content = fs::read_to_string(gltf_file_path).unwrap();
+    let gltf: GLTF = serde_json::from_str(&gltf_file_content).unwrap();
+
+    for mesh in gltf.meshes {
+        for primitive in mesh.primitives {
+            let vertex_position_accessor_index = primitive.attributes.position;
+            let vertex_position_accessor = &gltf.accessors[vertex_position_accessor_index as usize];
+
+            let vertex_indices_index = primitive.indices;
+            let vertex_indices_accessor = &gltf.accessors[vertex_indices_index as usize];
+
+            // Vertex Position
+            // TODO: I can definitely do a better job at defining these magic literals as descriptive variabels or types
+            let mut vertex_buffer_format: u32 = 0;
+            if vertex_position_accessor.component_type == 5126 
+                && vertex_position_accessor.element_type == "VEC3" {
+                    vertex_buffer_format = DXGI_FORMAT_R32G32B32_FLOAT;
+            } else {
+                panic!("Unsupported combination of component type {} and element type {}", vertex_position_accessor.component_type, vertex_position_accessor.element_type);
+            }
+
+            let semantic_name_position = CString::new("POSITION").unwrap();
+            let input_element_description = [
+                D3D11_INPUT_ELEMENT_DESC {
+                    SemanticName: PSTR(semantic_name_position.as_ptr() as *mut u8),
+                    SemanticIndex: 0, // TODO: Probably not needed for this element.
+                    Format: vertex_buffer_format,
+                    AlignedByteOffset: D3D11_APPEND_ALIGNED_ELEMENT,
+                    InputSlot: 0, // Integer identifying the input-assembler
+                    InputSlotClass: D3D11_INPUT_PER_VERTEX_DATA,
+                    InstanceDataStepRate: 0
+                }
+            ];
+        }
+    }
+
+    return None;
 }
 
 fn create_swap_chain_description(main_window: isize) -> DXGI_SWAP_CHAIN_DESC {
