@@ -13,6 +13,7 @@ use windows::{
 use std::{mem::{size_of, self}, os::windows::prelude::OsStrExt, env, fs, path::PathBuf};
 use std::ptr;
 use std::ffi::*;
+use std::collections::{HashMap};
 use core::iter::*;
 
 extern crate base64;
@@ -353,7 +354,7 @@ fn main() {
 
         let path_to_mesh = current_executable_path.parent().unwrap().join("resources\\plane\\plane.gltf");
 
-        load_model(&path_to_mesh);
+        //let mesh = load_model(&path_to_mesh, &dx_device);
 
         let json = fs::read_to_string(path_to_mesh).unwrap();
 
@@ -379,7 +380,7 @@ fn main() {
 
         let mut vertex_buffer =
             match dx_device.CreateBuffer(&vertex_buffer_description, &vertex_buffer_data) {
-                Ok(buffer) => Some(buffer),
+                Ok(buffer) => buffer,
                 Err(err) => panic!("Failed to create vertex buffer: {}", err)
             };
 
@@ -390,9 +391,9 @@ fn main() {
         dx_device_context.IASetVertexBuffers(
             0,
             1,
-            &vertex_buffer,
+            &Some(vertex_buffer),
             &size_of_vertex_struct,
-            &p_offsets);
+            &0);
 
         // TODO: Read up on this whole layout object thing again...
         let semantic_name_position = CString::new("POSITION").unwrap();
@@ -480,7 +481,7 @@ fn main() {
         // https://docs.microsoft.com/en-us/windows/win32/api/d3d11/ns-d3d11-d3d11_rasterizer_desc
         let mut rasterizer_description = D3D11_RASTERIZER_DESC::default();
         rasterizer_description.FillMode = D3D11_FILL_SOLID;
-        rasterizer_description.CullMode = D3D11_CULL_BACK;
+        rasterizer_description.CullMode = D3D11_CULL_NONE;
         rasterizer_description.FrontCounterClockwise = BOOL(0);
         rasterizer_description.ScissorEnable = BOOL(0);
         rasterizer_description.DepthClipEnable = BOOL(1);
@@ -535,6 +536,7 @@ fn main() {
         dx_device_context.VSSetConstantBuffers(0, 1, &mut vertex_constant_buffer);
 
         let mut camera = Camera::default();
+        camera.position.z = 0.0;
 
         let mut should_quit = false;
         let mut current_message = MSG::default();
@@ -560,6 +562,7 @@ fn main() {
                 DispatchMessageW(&current_message);
             } else {
                 // GAME LOOP
+                camera.position.z -= 0.00001;
 
                 // RENDER
                 let clear_color = beagle_math::Vector4::new(0.45, 0.6, 0.95, 1.0);
@@ -611,63 +614,104 @@ struct RawMesh {
     vertex_buffer_format: VertexBufferFormat
 }
 
-fn load_model(gltf_file_path: &PathBuf) -> Option<RawMesh> {
-    let gltf_file_content = fs::read_to_string(gltf_file_path).unwrap();
-    let gltf: GLTF = serde_json::from_str(&gltf_file_content).unwrap();
+// TODO:
+//   Currently my load_model function is heavily mixed up in both interpreting the actual data of the model,
+//   As well as creating certain DX buffers for parts of the model (like vertex buffer, index buffer, etc...)
+//   Perhaps the function should really only return a structure of all the mesh's data, and then let another part
+//   Of the codebase deal with how buffers specifically for DX should be created...
+fn load_model(gltf_file_path: &PathBuf, dx_device: &ID3D11Device) -> RawMesh {
+    unsafe {
+        let gltf_file_content = fs::read_to_string(gltf_file_path).unwrap();
+        let gltf: GLTF = serde_json::from_str(&gltf_file_content).unwrap();
 
-    for mesh in gltf.meshes {
-        // TODO: Currently only supporting simple meshes consisting of 1 primitive
-        if mesh.primitives.len() > 1 {
-            panic!("Unsupported amount of primitives.");
+        // TODO: Currently only supporting a single mesh
+        if (gltf.meshes.len() > 1) {
+            panic!("Unsupported amount of meshes.");
         }
 
-        for primitive in mesh.primitives {
-            let vertex_position_accessor_index = primitive.attributes.position;
-            let vertex_position_accessor = &gltf.accessors[vertex_position_accessor_index as usize];
-
-            let vertex_indices_accessor_index = primitive.indices;
-            let vertex_indices_accessor = &gltf.accessors[vertex_indices_accessor_index as usize];
-
+        let mut vertex_buffer: Option<ID3D11Buffer> = None;
+        let mut vertex_buffer_format: Option<VertexBufferFormat> = None;
+    
+        for mesh in gltf.meshes {
+            // TODO: Currently only supporting simple meshes consisting of 1 primitive
+            if mesh.primitives.len() > 1 {
+                panic!("Unsupported amount of primitives.");
+            }
+    
+            for primitive in mesh.primitives {
+                let mut decoded_buffers : HashMap<u32, Vec<u8>> = HashMap::new();
+    
+                let vertex_position_accessor_index = primitive.attributes.position;
+                let vertex_position_accessor = &gltf.accessors[vertex_position_accessor_index as usize];
+    
+                let vertex_indices_accessor_index = primitive.indices;
+                let vertex_indices_accessor = &gltf.accessors[vertex_indices_accessor_index as usize];
+    
                 // Vertex Position
-            // TODO: I can definitely do a better job at defining these magic literals as descriptive variabels or types
-            let mut vertex_buffer_format = VertexBufferFormat::Vec3Float;
-            if vertex_position_accessor.component_type == 5126 
-                && vertex_position_accessor.element_type == "VEC3" {
-                    vertex_buffer_format = VertexBufferFormat::Vec3Float;
-            } else {
-                panic!("Unsupported combination of component type {} and element type {}", vertex_position_accessor.component_type, vertex_position_accessor.element_type);
+                // TODO: I can definitely do a better job at defining these magic literals as descriptive variabels or types
+                if vertex_position_accessor.component_type == 5126 
+                    && vertex_position_accessor.element_type == "VEC3" {
+                        vertex_buffer_format = Some(VertexBufferFormat::Vec3Float);
+                } else {
+                    panic!("Unsupported combination of component type {} and element type {}", vertex_position_accessor.component_type, vertex_position_accessor.element_type);
+                }
+    
+                let vertex_position_buffer_view = &gltf.buffer_views[vertex_position_accessor.buffer_view as usize];
+                let vertex_position_buffer_index = vertex_position_buffer_view.buffer;
+                let vertex_position_byte_length = vertex_position_buffer_view.byte_length;
+                let vertex_position_byte_offset = vertex_position_buffer_view.byte_offset;            
+    
+                let decoded_data: &Vec<u8>;
+                if decoded_buffers.contains_key(&vertex_position_buffer_index) {
+                    decoded_data = decoded_buffers.get(&vertex_position_buffer_index).unwrap();
+                } else {
+                    let vertex_buffer = &gltf.buffers[vertex_position_buffer_index as usize];
+                    decoded_buffers.insert(
+                        vertex_position_buffer_index, decode_base64_data_uri(&vertex_buffer.uri));
+    
+                    decoded_data = decoded_buffers.get(&vertex_position_buffer_index).unwrap();
+                }
+    
+                // TODO: Look... I know this isn't readable, okay? It'll improve!
+                let mut vertex_buffer_data: Vec<u8> = vec![0; vertex_position_byte_length as usize];
+                vertex_buffer_data.copy_from_slice(&decoded_data[(vertex_position_byte_offset as usize)..((vertex_position_byte_offset + vertex_position_byte_length) as usize)]);
+    
+                let mut vertex_buffer_description = D3D11_BUFFER_DESC::default();
+                vertex_buffer_description.ByteWidth = (mem::size_of::<u8>() * vertex_buffer_data.len()) as u32;
+                vertex_buffer_description.Usage = D3D11_USAGE_DEFAULT;
+                vertex_buffer_description.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+    
+                let mut vertex_buffer_subresource = D3D11_SUBRESOURCE_DATA::default();
+                vertex_buffer_subresource.pSysMem = vertex_buffer_data.as_ptr() as *mut c_void;
+    
+                vertex_buffer =
+                    match dx_device.CreateBuffer(&vertex_buffer_description, &vertex_buffer_subresource) {
+                        Ok(buffer) => Some(buffer),
+                        Err(err) => panic!("Failed to create vertex buffer: {}", err)
+                    };
             }
+        }
 
-            let vertex_position_buffer_view = &gltf.buffer_views[vertex_position_accessor.buffer_view as usize];
-            let vertex_position_buffer_index = vertex_position_buffer_view.buffer;
-            let vertex_position_byte_length = vertex_position_buffer_view.byte_length;
-            let vertex_position_byte_offset = vertex_position_buffer_view.byte_offset;
-
-            // https://en.wikipedia.org/wiki/Data_URI_scheme
-            // data:[<media type>][;base64],<data>
-            // TODO:
-            //   Currently I'm very naive about my data URI parsing.
-            //   Basically I only accept the strict starting format of "data:application/octet-stream;base64"
-            let vertex_buffer = &gltf.buffers[vertex_position_buffer_index as usize];
-            let vertex_buffer_uri = &vertex_buffer.uri;
-
-            if !vertex_buffer_uri.starts_with("data:application/octet-stream;base64") {
-                panic!("Unsupported data URI encountered: {}", vertex_buffer_uri);
-            }
-
-            let data_in_base64 = vertex_buffer_uri.split_once(",").unwrap().1;
-
-            let decoded_data : Vec<u8> = base64::decode(data_in_base64).unwrap();
-
-            // TODO: Look... I know this isn't readable, okay? It'll improve!
-            let mut vertex_buffer_data: Vec<u8> = vec![0; vertex_position_byte_length as usize];
-            vertex_buffer_data.copy_from_slice(&decoded_data[(vertex_position_byte_offset as usize)..((vertex_position_byte_offset + vertex_position_byte_length) as usize)]);
-
-            println!("{:?}", vertex_buffer_data);
+        RawMesh {
+            vertex_buffer: vertex_buffer.unwrap(),
+            vertex_buffer_format: vertex_buffer_format.unwrap()
         }
     }
+}
 
-    return None;
+fn decode_base64_data_uri(data_uri: &str) -> Vec<u8> {
+    // https://en.wikipedia.org/wiki/Data_URI_scheme
+    // data:[<media type>][;base64],<data>
+    // TODO:
+    //   Currently I'm very naive about my data URI parsing.
+    //   Basically I only accept the strict starting format of "data:application/octet-stream;base64"
+    if !data_uri.starts_with("data:application/octet-stream;base64") {
+        panic!("Unsupported data URI encountered: {}", data_uri);
+    }
+
+    let data_in_base64 = data_uri.split_once(",").unwrap().1;
+
+    base64::decode(data_in_base64).unwrap()
 }
 
 fn create_swap_chain_description(main_window: isize) -> DXGI_SWAP_CHAIN_DESC {
