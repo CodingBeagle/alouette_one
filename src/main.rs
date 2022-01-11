@@ -602,10 +602,13 @@ fn main() {
     }
 }
 
+enum VertexBufferFormat {
+    Vec3Float,
+}
+
 struct RawMesh {
-    // TODO fji
     vertex_buffer: ID3D11Buffer,
-    input_layout: ID3D11InputLayout
+    vertex_buffer_format: VertexBufferFormat
 }
 
 fn load_model(gltf_file_path: &PathBuf) -> Option<RawMesh> {
@@ -613,35 +616,54 @@ fn load_model(gltf_file_path: &PathBuf) -> Option<RawMesh> {
     let gltf: GLTF = serde_json::from_str(&gltf_file_content).unwrap();
 
     for mesh in gltf.meshes {
+        // TODO: Currently only supporting simple meshes consisting of 1 primitive
+        if mesh.primitives.len() > 1 {
+            panic!("Unsupported amount of primitives.");
+        }
+
         for primitive in mesh.primitives {
             let vertex_position_accessor_index = primitive.attributes.position;
             let vertex_position_accessor = &gltf.accessors[vertex_position_accessor_index as usize];
 
-            let vertex_indices_index = primitive.indices;
-            let vertex_indices_accessor = &gltf.accessors[vertex_indices_index as usize];
+            let vertex_indices_accessor_index = primitive.indices;
+            let vertex_indices_accessor = &gltf.accessors[vertex_indices_accessor_index as usize];
 
-            // Vertex Position
+                // Vertex Position
             // TODO: I can definitely do a better job at defining these magic literals as descriptive variabels or types
-            let mut vertex_buffer_format: u32 = 0;
+            let mut vertex_buffer_format = VertexBufferFormat::Vec3Float;
             if vertex_position_accessor.component_type == 5126 
                 && vertex_position_accessor.element_type == "VEC3" {
-                    vertex_buffer_format = DXGI_FORMAT_R32G32B32_FLOAT;
+                    vertex_buffer_format = VertexBufferFormat::Vec3Float;
             } else {
                 panic!("Unsupported combination of component type {} and element type {}", vertex_position_accessor.component_type, vertex_position_accessor.element_type);
             }
 
-            let semantic_name_position = CString::new("POSITION").unwrap();
-            let input_element_description = [
-                D3D11_INPUT_ELEMENT_DESC {
-                    SemanticName: PSTR(semantic_name_position.as_ptr() as *mut u8),
-                    SemanticIndex: 0, // TODO: Probably not needed for this element.
-                    Format: vertex_buffer_format,
-                    AlignedByteOffset: D3D11_APPEND_ALIGNED_ELEMENT,
-                    InputSlot: 0, // Integer identifying the input-assembler
-                    InputSlotClass: D3D11_INPUT_PER_VERTEX_DATA,
-                    InstanceDataStepRate: 0
-                }
-            ];
+            let vertex_position_buffer_view = &gltf.buffer_views[vertex_position_accessor.buffer_view as usize];
+            let vertex_position_buffer_index = vertex_position_buffer_view.buffer;
+            let vertex_position_byte_length = vertex_position_buffer_view.byte_length;
+            let vertex_position_byte_offset = vertex_position_buffer_view.byte_offset;
+
+            // https://en.wikipedia.org/wiki/Data_URI_scheme
+            // data:[<media type>][;base64],<data>
+            // TODO:
+            //   Currently I'm very naive about my data URI parsing.
+            //   Basically I only accept the strict starting format of "data:application/octet-stream;base64"
+            let vertex_buffer = &gltf.buffers[vertex_position_buffer_index as usize];
+            let vertex_buffer_uri = &vertex_buffer.uri;
+
+            if !vertex_buffer_uri.starts_with("data:application/octet-stream;base64") {
+                panic!("Unsupported data URI encountered: {}", vertex_buffer_uri);
+            }
+
+            let data_in_base64 = vertex_buffer_uri.split_once(",").unwrap().1;
+
+            let decoded_data : Vec<u8> = base64::decode(data_in_base64).unwrap();
+
+            // TODO: Look... I know this isn't readable, okay? It'll improve!
+            let mut vertex_buffer_data: Vec<u8> = vec![0; vertex_position_byte_length as usize];
+            vertex_buffer_data.copy_from_slice(&decoded_data[(vertex_position_byte_offset as usize)..((vertex_position_byte_offset + vertex_position_byte_length) as usize)]);
+
+            println!("{:?}", vertex_buffer_data);
         }
     }
 
