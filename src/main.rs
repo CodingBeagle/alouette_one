@@ -586,7 +586,14 @@ fn main() {
                 }
 
                 let rofl = mapped_resource.unwrap().pData as *mut VertexConstantBuffer;
+
+                // MY MATH LIBRARY CURRENTLY USES ROW-MAJOR CONVENTION, THIS MEANS THAT YOUR TYPICAL P * V * TRSv order becomes vSRT * VIEW * PROJECTION
                 (*rofl).worldViewProjection = camera.view_matrix().mul(&beagle_math::Mat4::projection((45.0f32).to_radians(), 800.0, 600.0, 0.1, 100.0));
+                
+                // My matrices are all designed for being multipled with a ROW vector.
+                // Also, I store my matrices in row-major order in memory.
+                // By default, HLSL will both READ and PACK matrices in column-major. 
+                // So I transpose my matrix so that it will be read correctly as a ROW MAJOR matrix on the shader side.
                 (*rofl).worldViewProjection.tranpose();
 
                 // After we're done mapping new data, we have to call Unmap in order to invalidate the pointer to the buffer
