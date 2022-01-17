@@ -38,7 +38,7 @@ struct Camera {
 
 impl Camera {
     fn view_matrix(&self) -> beagle_math::Mat4 {
-        beagle_math::Mat4::translate(&beagle_math::Vector3::new(self.position.x * -0.1, self.position.y * -1.0, self.position.z * -1.0))
+        beagle_math::Mat4::translate(&beagle_math::Vector3::new(self.position.x * -1.0, self.position.y * -1.0, self.position.z * -1.0)) 
     }
 }
 
@@ -361,10 +361,10 @@ fn main() {
         let deserialized: GLTF = serde_json::from_str(&json).unwrap();
 
         let mut box_vertices: [f32; 12] = [
-            -5.5,  5.5, 30.0,
-             5.5,  5.5, 30.0,
-            -5.5, -5.5, 30.0,
-             5.5, -5.5, 30.0
+            -5.5,  5.5, 0.0,
+             5.5,  5.5, 0.0,
+            -5.5, -5.5, 0.0,
+             5.5, -5.5, 0.0
         ];
 
         // https://docs.microsoft.com/en-us/windows/win32/api/d3d11/ns-d3d11-d3d11_buffer_desc
@@ -393,7 +393,7 @@ fn main() {
             1,
             &Some(vertex_buffer),
             &size_of_vertex_struct,
-            &0);
+            &p_offsets);
 
         // TODO: Read up on this whole layout object thing again...
         let semantic_name_position = CString::new("POSITION").unwrap();
@@ -533,10 +533,16 @@ fn main() {
         };
 
         let mut vertex_constant_buffer = dx_device.CreateBuffer(&vertex_constant_buffer_description, &identity_matrix).ok();
+
+        if vertex_constant_buffer.is_none() {
+            panic!("Failed to create vertex constant buffer!");
+        }
+
         dx_device_context.VSSetConstantBuffers(0, 1, &mut vertex_constant_buffer);
 
         let mut camera = Camera::default();
         camera.position.z = 0.0;
+        camera.position.x = 0.0;
 
         let mut should_quit = false;
         let mut current_message = MSG::default();
@@ -562,7 +568,8 @@ fn main() {
                 DispatchMessageW(&current_message);
             } else {
                 // GAME LOOP
-                camera.position.z -= 0.00001;
+                //camera.position.z -= 0.001;
+                camera.position.z -= 0.05;
 
                 // RENDER
                 let clear_color = beagle_math::Vector4::new(0.45, 0.6, 0.95, 1.0);
@@ -579,11 +586,11 @@ fn main() {
                 }
 
                 let rofl = mapped_resource.unwrap().pData as *mut VertexConstantBuffer;
-                (*rofl).worldViewProjection = beagle_math::Mat4::projection((45.0f32).to_radians(), 800.0, 600.0, 0.1, 100.0).mul(&camera.view_matrix());
+                (*rofl).worldViewProjection = camera.view_matrix().mul(&beagle_math::Mat4::projection((45.0f32).to_radians(), 800.0, 600.0, 0.1, 100.0));
                 (*rofl).worldViewProjection.tranpose();
 
                 // After we're done mapping new data, we have to call Unmap in order to invalidate the pointer to the buffer
-                // And reeanble the GPU's access to that resource
+                // And reenable the GPU's access to that resource
                 dx_device_context.Unmap(lol, 0);
 
                 dx_device_context.ClearRenderTargetView(
