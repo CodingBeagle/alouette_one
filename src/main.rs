@@ -625,7 +625,8 @@ enum VertexBufferFormat {
 
 struct RawMesh {
     vertex_buffer: ID3D11Buffer,
-    vertex_buffer_format: VertexBufferFormat
+    vertex_buffer_format: VertexBufferFormat,
+    index_buffer: ID3D11Buffer
 }
 
 // TODO:
@@ -645,8 +646,7 @@ fn load_model(gltf_file_path: &PathBuf, dx_device: &ID3D11Device) -> RawMesh {
 
         let mut vertex_buffer: Option<ID3D11Buffer> = None;
         let mut vertex_buffer_format: Option<VertexBufferFormat> = None;
-
-        let mut vertex_index_buffer: Option<ID3D11Buffer> = None;
+        let mut index_buffer: Option<ID3D11Buffer> = None;
     
         for mesh in gltf.meshes {
             // TODO: Currently only supporting simple meshes consisting of 1 primitive
@@ -699,12 +699,32 @@ fn load_model(gltf_file_path: &PathBuf, dx_device: &ID3D11Device) -> RawMesh {
                     vertex_indices_accessor.element_type != "SCALAR" {
                         panic!("Unsupported index buffer component type and element type: {}, {}", vertex_indices_accessor.component_type, vertex_indices_accessor.element_type);
                     }
+
+                let vertex_indices_buffer_view = &gltf.buffer_views[vertex_indices_accessor.buffer_view as usize];
+                let vertex_indices_buffer_index = vertex_indices_buffer_view.buffer;
+
+                let mut vertex_indices_buffer_data: Vec<u8> = vec![0; vertex_indices_buffer_view.byte_length as usize];
+                vertex_indices_buffer_data.copy_from_slice(&mut gltf.buffers[vertex_indices_buffer_index as usize].get_data(vertex_indices_buffer_view.byte_offset, vertex_indices_buffer_view.byte_length));
+
+                let mut index_buffer_description = D3D11_BUFFER_DESC::default();
+                index_buffer_description.ByteWidth = (mem::size_of::<i32>() * vertex_indices_buffer_data.len()) as u32;
+                index_buffer_description.Usage = D3D11_USAGE_DEFAULT;
+                index_buffer_description.BindFlags = D3D11_BIND_INDEX_BUFFER;
+
+                let mut index_buffer_data = D3D11_SUBRESOURCE_DATA::default();
+                index_buffer_data.pSysMem = vertex_indices_buffer_data.as_mut_ptr() as *mut c_void;
+
+                index_buffer = match dx_device.CreateBuffer(&index_buffer_description, &index_buffer_data) {
+                    Ok(id) => Some(id),
+                    Err(err) => panic!("Failed to create index buffer: {}", err)
+                };
             }
         }
 
         RawMesh {
             vertex_buffer: vertex_buffer.unwrap(),
-            vertex_buffer_format: vertex_buffer_format.unwrap()
+            vertex_buffer_format: vertex_buffer_format.unwrap(),
+            index_buffer: index_buffer.unwrap()
         }
     }
 }
