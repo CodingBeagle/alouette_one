@@ -433,28 +433,7 @@ fn main() {
         // You do this by specifying a "primitive type" through the Primitive Topology method.
         dx_device_context.IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
-        // Create an index buffer
-        // https://docs.microsoft.com/en-us/windows/win32/direct3d11/overviews-direct3d-11-resources-buffers-index-how-to
-        // An Index Buffer is simply a buffer which contains indices into a vertex buffer. It's used to render primitives more efficiently.
-        let mut indices: Vec<i32> = vec![
-            0, 1, 2,
-            1, 3, 2,
-        ];
-
-        let mut index_buffer_description = D3D11_BUFFER_DESC::default();
-        index_buffer_description.ByteWidth = (mem::size_of::<i32>() * indices.len()) as u32;
-        index_buffer_description.Usage = D3D11_USAGE_DEFAULT;
-        index_buffer_description.BindFlags = D3D11_BIND_INDEX_BUFFER;
-
-        let mut index_buffer_data = D3D11_SUBRESOURCE_DATA::default();
-        index_buffer_data.pSysMem = indices.as_mut_ptr() as *mut c_void;
-
-        let index_buffer = match dx_device.CreateBuffer(&index_buffer_description, &index_buffer_data) {
-            Ok(id) => id,
-            Err(err) => panic!("Failed to create index buffer: {}", err)
-        };
-
-        dx_device_context.IASetIndexBuffer(index_buffer, DXGI_FORMAT_R32_UINT, 0);
+        dx_device_context.IASetIndexBuffer(&mesh.index_buffer, DXGI_FORMAT_R16_UINT, 0);
 
         // Create vertex shader and pixel shader
         let path_to_pixel_shader = current_executable_path.parent().unwrap().join("resources\\shaders\\compiled-pixel.shader");
@@ -608,7 +587,8 @@ fn main() {
                     1.0, 
                     0);
 
-                dx_device_context.DrawIndexed(indices.len() as u32, 0, 0);
+                // TODO: Read indices count from actual GLTF file!!
+                dx_device_context.DrawIndexed(6, 0, 0);
 
                 if swap_chain.Present(1, 0).is_err() {
                     panic!("Failed to present!");
@@ -707,7 +687,7 @@ fn load_model(gltf_file_path: &PathBuf, dx_device: &ID3D11Device) -> RawMesh {
                 vertex_indices_buffer_data.copy_from_slice(&mut gltf.buffers[vertex_indices_buffer_index as usize].get_data(vertex_indices_buffer_view.byte_offset, vertex_indices_buffer_view.byte_length));
 
                 let mut index_buffer_description = D3D11_BUFFER_DESC::default();
-                index_buffer_description.ByteWidth = (mem::size_of::<i32>() * vertex_indices_buffer_data.len()) as u32;
+                index_buffer_description.ByteWidth = (mem::size_of::<u8>() * vertex_indices_buffer_data.len()) as u32;
                 index_buffer_description.Usage = D3D11_USAGE_DEFAULT;
                 index_buffer_description.BindFlags = D3D11_BIND_INDEX_BUFFER;
 
