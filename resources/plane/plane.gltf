@@ -15,41 +15,29 @@
     "nodes" : [
         {
             "mesh" : 0,
-            "name" : "plane",
+            "name" : "Plane",
             "rotation" : [
-                1,
+                0.7071068286895752,
                 0,
                 0,
-                0
+                0.7071068286895752
+            ],
+            "scale" : [
+                7.449634552001953,
+                3.836500883102417,
+                4.933008193969727
             ]
-        }
-    ],
-    "materials" : [
-        {
-            "doubleSided" : true,
-            "name" : "Material.001",
-            "pbrMetallicRoughness" : {
-                "baseColorFactor" : [
-                    0.800000011920929,
-                    0.800000011920929,
-                    0.800000011920929,
-                    1
-                ],
-                "metallicFactor" : 0,
-                "roughnessFactor" : 0.4000000059604645
-            }
         }
     ],
     "meshes" : [
         {
-            "name" : "Cube.001",
+            "name" : "Plane",
             "primitives" : [
                 {
                     "attributes" : {
                         "POSITION" : 0
                     },
-                    "indices" : 1,
-                    "material" : 0
+                    "indices" : 1
                 }
             ]
         }
@@ -60,13 +48,13 @@
             "componentType" : 5126,
             "count" : 4,
             "max" : [
-                -0.013228073716163635,
                 1,
+                0,
                 1
             ],
             "min" : [
-                -0.013228073716163635,
                 -1,
+                0,
                 -1
             ],
             "type" : "VEC3"
@@ -93,7 +81,7 @@
     "buffers" : [
         {
             "byteLength" : 60,
-            "uri" : "data:application/octet-stream;base64,kLpYvAAAgD8AAIC/kLpYvAAAgL8AAIC/kLpYvAAAgD8AAIA/kLpYvAAAgL8AAIA/AQAAAAIAAQACAAMA"
+            "uri" : "data:application/octet-stream;base64,AACAvwAAAAAAAIA/AACAPwAAAAAAAIA/AACAvwAAAAAAAIC/AACAPwAAAAAAAIC/AAABAAMAAAADAAIA"
         }
     ]
 }
