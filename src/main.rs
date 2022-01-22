@@ -550,7 +550,7 @@ fn main() {
             D3D11_INPUT_ELEMENT_DESC {
                 SemanticName: PSTR(semantic_name_color.as_ptr() as *mut u8),
                 SemanticIndex: 0,
-                Format: DXGI_FORMAT_R32G32B32A32_FLOAT,
+                Format: DXGI_FORMAT_R16G16B16A16_UNORM,
                 InputSlot: 1,
                 AlignedByteOffset: D3D11_APPEND_ALIGNED_ELEMENT,
                 InputSlotClass: D3D11_INPUT_PER_VERTEX_DATA,
@@ -563,7 +563,7 @@ fn main() {
         // If it fits.
         let input_layout_object = match dx_device.CreateInputLayout(
             input_element_descriptions.as_ptr(),
-            1,
+            2,
             compiled_vertex_shader_code.as_ptr() as *const c_void,
             compiled_vertex_shader_code.len()) {
                 Ok(ilo) => ilo,
