@@ -1,5 +1,12 @@
 // Pixel shader
-void PS(out float4 col : SV_TARGET)
+
+struct PSIn
 {
-    col = float4(1.0, 0.0, 0.0, 1.0);
+    float4 PosH : SV_POSITION;
+    float4 Color : COLOR0;
+};
+
+float4 PS(PSIn input) : SV_TARGET
+{
+    return input.Color;
 }

@@ -1,0 +1,76 @@
+{
+    "asset" : {
+        "generator" : "Khronos glTF Blender I/O v1.5.17",
+        "version" : "2.0"
+    },
+    "scene" : 0,
+    "scenes" : [
+        {
+            "name" : "Scene",
+            "nodes" : [
+                0
+            ]
+        }
+    ],
+    "nodes" : [
+        {
+            "mesh" : 0,
+            "name" : "Plane"
+        }
+    ],
+    "meshes" : [
+        {
+            "name" : "Plane",
+            "primitives" : [
+                {
+                    "attributes" : {
+                        "POSITION" : 0
+                    },
+                    "indices" : 1
+                }
+            ]
+        }
+    ],
+    "accessors" : [
+        {
+            "bufferView" : 0,
+            "componentType" : 5126,
+            "count" : 9,
+            "max" : [
+                0.9016172289848328,
+                0.28833913803100586,
+                1
+            ],
+            "min" : [
+                -1.6139960289001465,
+                -1.1674765348434448,
+                -0.6432155966758728
+            ],
+            "type" : "VEC3"
+        },
+        {
+            "bufferView" : 1,
+            "componentType" : 5123,
+            "count" : 24,
+            "type" : "SCALAR"
+        }
+    ],
+    "bufferViews" : [
+        {
+            "buffer" : 0,
+            "byteLength" : 108,
+            "byteOffset" : 0
+        },
+        {
+            "buffer" : 0,
+            "byteLength" : 48,
+            "byteOffset" : 108
+        }
+    ],
+    "buffers" : [
+        {
+            "byteLength" : 156,
+            "uri" : "data:application/octet-stream;base64,dl62vjChEz7ZRwu/Y9BmPzChEz5wrDY+IC0nPh5w/b0AAIA/KhqMvx5w/b0WGo4+0jkTvx5wfb4AAIA/Y9BmPwAAAAAAAIA/bJfOvwAAAADWy+O+Y9BmPzChkz7HqSS/zI/Fvd9vlb9QcGk+AwAIAAAAAwAAAAYACAABAAcACAAHAAAABAACAAgABAAIAAMAAgAFAAEAAgABAAgA"
+        }
+    ]
+}
