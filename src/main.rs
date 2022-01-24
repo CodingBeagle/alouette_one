@@ -21,6 +21,9 @@ extern crate base64;
 
 use serde::{Serialize, Deserialize};
 
+#[macro_use]
+extern crate lazy_static;
+
 // OWN MODULES
 mod beagle_math;
 
@@ -737,6 +740,41 @@ fn main() {
             }
         }
     }
+}
+
+enum Usage {
+    GpuReadWrite = D3D11_USAGE_DEFAULT as isize,
+    GpuReadCpuWrite = D3D11_USAGE_DYNAMIC as isize
+}
+
+enum BufferType {
+    Vertex = D3D11_BIND_VERTEX_BUFFER as isize,
+    Index = D3D11_BIND_INDEX_BUFFER as isize,
+    Shader = D3D11_BIND_CONSTANT_BUFFER as isize
+}
+
+enum CpuAccess {
+    Read = D3D11_CPU_ACCESS_READ as isize,
+    Write = D3D11_CPU_ACCESS_WRITE as isize
+}
+
+fn create_buffer<T>(bufferType: BufferType, usage: Usage, cpu_access: CpuAccess, initial_data: &[T]) -> ID3D11Buffer {
+    let buffer_description = D3D11_BUFFER_DESC {
+        ByteWidth: (mem::size_of::<T>() * initial_data.len()) as u32,
+        Usage: usage as i32,
+        BindFlags: bufferType as u32,
+        CPUAccessFlags: cpu_access as u32,
+        MiscFlags: 0,
+        StructureByteStride: 0
+    };
+
+    let buffer_subresource = D3D11_SUBRESOURCE_DATA {
+        pSysMem: initial_data.as_ptr() as *mut c_void,
+        SysMemPitch: 0,
+        SysMemSlicePitch: 0
+    };
+
+    unimplemented!()
 }
 
 enum VertexBufferFormat {
