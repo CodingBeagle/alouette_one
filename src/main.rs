@@ -21,11 +21,9 @@ extern crate base64;
 
 use serde::{Serialize, Deserialize};
 
-#[macro_use]
-extern crate lazy_static;
-
 // OWN MODULES
 mod beagle_math;
+mod dx;
 
 #[derive(Debug)]
 struct tester {
@@ -280,69 +278,10 @@ fn main() {
             panic!("Failed to create window!");
         }
 
-        // DirectX Initialization
-        // It starts with creating a ID3D11Device and ID3D11DeviceContext.
-        // These are the two primary interfaces of DirectX 11, helping us to interface with the GPU.
+        dx::initialize_directx();
 
-        // The ID3D11Device is used to check feature support and allocate resources.
-        let mut dx_device: Option<ID3D11Device> = None;
-
-        // The ID3D11DeviceContext is used to set render states, bind resources to the graphics
-        // pipelines, issue rendering commands, etc...
-        let mut dx_device_context: Option<ID3D11DeviceContext> = None;
-
-        // Array of feature levels to support.
-        // https://docs.microsoft.com/en-us/windows/win32/api/d3dcommon/ne-d3dcommon-d3d_feature_level
-        // Basically, in DirectX11, what features of DirectX a video card supports is described
-        // In terms of feature levels.
-        // A feature level is a well-defined set of GPU functionality.
-        // When you do device creation, you attempt to create a device for a certain feature level.
-        // If device creation fails, it might be that the feature level you request is not supported
-        // by the GPU.
-        let requested_feature_levels = [
-            D3D_FEATURE_LEVEL_11_0
-        ];
-
-        let mut feature_level_result = 0;
-
-        // Attempt to create device and device context
-        let device_creation_result = D3D11CreateDevice(
-            // Pointer to the video adapter. This is left null, meaning it will pick up
-            // The first adapter enumerated by EnumAdapters.
-            // The video adapter is the GPU.
-            None,
-            // The Driver Type.
-            // I specify hardware to get hardware accelerated DirectX features.
-            D3D_DRIVER_TYPE_HARDWARE,
-            // Handle to a DLL that implements a software rasterizer. Only relevant
-            // If you choose a software driver.
-            None,
-            // Runtime layers to enable.
-            // https://docs.microsoft.com/en-us/windows/win32/direct3d11/overviews-direct3d-11-devices-layers
-            D3D11_CREATE_DEVICE_DEBUG,
-            // Requested feature levels.
-            requested_feature_levels.as_ptr(),
-            // Number of elements in the requested feature levels array
-            requested_feature_levels.len() as u32,
-            // You should always specify D3D11_SDK_VERSION for the SDK version parameter.
-            D3D11_SDK_VERSION,
-            // The return values of the function
-            &mut dx_device,
-            &mut feature_level_result,
-            &mut dx_device_context
-        );
-
-        match device_creation_result {
-            Ok(()) => println!("DirectX Device Created!"),
-            Err(e) => panic!("Failed to create DirectX device: {:?}", e)
-        }
-        
-        if feature_level_result != D3D_FEATURE_LEVEL_11_0 {
-            panic!("DirectX 11 support is required, but this device does not support it.");
-        }
-
-        let dx_device = dx_device.as_ref().unwrap();
-        let dx_device_context = dx_device_context.as_ref().unwrap();
+        let dx_device = &dx::DX.as_ref().unwrap().device;
+        let dx_device_context = &dx::DX.as_ref().unwrap().context;
 
         // Create the swap chain.
 
@@ -351,7 +290,7 @@ fn main() {
         // The issue is that the IDXGIFactory required is the one which was implicitly used
         // to create the device when calling D3D11CreateDevice, so some calls will have to
         // be made to retrieve that factory.
-        let idxgi_device : IDXGIDevice = dx_device.cast().unwrap();
+        let idxgi_device : IDXGIDevice = dx_device .cast().unwrap();
         let idxgi_adapter = idxgi_device.GetAdapter().unwrap();
         let idxgi_factory : IDXGIFactory = idxgi_adapter.GetParent().unwrap();
 
@@ -458,41 +397,10 @@ fn main() {
         let primitive = mesh.loaded_primitives.first().unwrap();
 
         // VERTEX BUFFER
-        let mut vertex_buffer_description = D3D11_BUFFER_DESC::default();
-        vertex_buffer_description.ByteWidth = (mem::size_of::<u8>() * primitive.vertex_positions.buffer_data.len()) as u32;
-        vertex_buffer_description.Usage = D3D11_USAGE_DEFAULT;
-        vertex_buffer_description.BindFlags = D3D11_BIND_VERTEX_BUFFER;
-
-        let mut vertex_buffer_subresource = D3D11_SUBRESOURCE_DATA::default();
-        vertex_buffer_subresource.pSysMem = primitive.vertex_positions.buffer_data.as_ptr() as *mut c_void;
-
-        let vertex_buffer =
-            match dx_device.CreateBuffer(&vertex_buffer_description, &vertex_buffer_subresource) {
-                Ok(buffer) => Some(buffer),
-                Err(err) => panic!("Failed to create vertex buffer: {}", err)
-            };
+        let vertex_buffer = Some(create_buffer::<u8>(BufferType::Vertex, Usage::GpuReadWrite, CpuAccess::None, primitive.vertex_positions.buffer_data.as_slice()));
 
         // COLOR BUFFER
-        let mut color_buffer: Option<ID3D11Buffer> = None;
-        if primitive.vertex_colors.is_some() {
-            let vert_colors = primitive.vertex_colors.as_ref().unwrap();
-            let mut color_buffer_description = D3D11_BUFFER_DESC::default();
-            color_buffer_description.ByteWidth = (mem::size_of::<u8>() * vert_colors.buffer_data.len()) as u32;
-            color_buffer_description.Usage = D3D11_USAGE_DEFAULT;
-            color_buffer_description.BindFlags = D3D11_BIND_VERTEX_BUFFER;
-
-            let mut color_buffer_subresource = D3D11_SUBRESOURCE_DATA::default();
-            color_buffer_subresource.pSysMem = vert_colors.buffer_data.as_ptr() as *mut c_void;
-
-            color_buffer = match dx_device.CreateBuffer(&color_buffer_description, &color_buffer_subresource) {
-                Ok(id) => Some(id),
-                Err(err) => panic!("Failed to create index buffer: {}", err)
-            };
-
-            if color_buffer.is_none() {
-                panic!("Failed to create color buffer!");
-            }
-        }
+        let color_buffer = Some(create_buffer::<u8>(BufferType::Vertex, Usage::GpuReadWrite, CpuAccess::None, primitive.vertex_colors.as_ref().unwrap().buffer_data.as_slice()));
 
         let holy_moly = [
             vertex_buffer,
@@ -754,27 +662,35 @@ enum BufferType {
 }
 
 enum CpuAccess {
+    None = 0,
     Read = D3D11_CPU_ACCESS_READ as isize,
     Write = D3D11_CPU_ACCESS_WRITE as isize
 }
 
 fn create_buffer<T>(bufferType: BufferType, usage: Usage, cpu_access: CpuAccess, initial_data: &[T]) -> ID3D11Buffer {
-    let buffer_description = D3D11_BUFFER_DESC {
-        ByteWidth: (mem::size_of::<T>() * initial_data.len()) as u32,
-        Usage: usage as i32,
-        BindFlags: bufferType as u32,
-        CPUAccessFlags: cpu_access as u32,
-        MiscFlags: 0,
-        StructureByteStride: 0
-    };
+    unsafe {
+        let buffer_description = D3D11_BUFFER_DESC {
+            ByteWidth: (mem::size_of::<T>() * initial_data.len()) as u32,
+            Usage: usage as i32,
+            BindFlags: bufferType as u32,
+            CPUAccessFlags: cpu_access as u32,
+            MiscFlags: 0,
+            StructureByteStride: 0
+        };
+    
+        let buffer_subresource = D3D11_SUBRESOURCE_DATA {
+            pSysMem: initial_data.as_ptr() as *mut c_void,
+            SysMemPitch: 0,
+            SysMemSlicePitch: 0
+        };
+    
+        let dx_device = &dx::DX.as_ref().unwrap().device;
 
-    let buffer_subresource = D3D11_SUBRESOURCE_DATA {
-        pSysMem: initial_data.as_ptr() as *mut c_void,
-        SysMemPitch: 0,
-        SysMemSlicePitch: 0
-    };
-
-    unimplemented!()
+        match dx_device.CreateBuffer(&buffer_description, &buffer_subresource) {
+            Ok(id) => id,
+            Err(err) => panic!("Failed to create buffer: {}", err)
+        }
+    }
 }
 
 enum VertexBufferFormat {
