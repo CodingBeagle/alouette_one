@@ -10,27 +10,17 @@ use windows::{
     }, core::{Interface, DefaultType}  
 };
 
-use std::{mem::{size_of, self}, os::windows::prelude::OsStrExt, env, fs, path::PathBuf};
+use std::{mem::{size_of, self}, os::windows::prelude::OsStrExt, env, fs};
 use std::ptr;
 use std::ffi::*;
 use std::collections::{HashMap};
 use core::iter::*;
-use std::cell::{RefCell, Ref};
-
-extern crate base64;
-
-use serde::{Serialize, Deserialize};
 
 // OWN MODULES
+mod gltf;
 mod beagle_math;
 mod dx;
-
-#[derive(Debug)]
-struct tester {
-    x: f32,
-    y: f32,
-    z: f32
-}
+mod window;
 
 #[derive(Default)]
 struct Camera {
@@ -46,187 +36,6 @@ impl Camera {
 
 struct VertexConstantBuffer {
     worldViewProjection: beagle_math::Mat4
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-#[serde(rename_all = "camelCase")]
-struct GLTF {
-    meshes: Vec<Mesh>,
-    accessors: Vec<Accessor>,
-    buffer_views: Vec<BufferView>,
-    buffers: Vec<Buffer>,
-
-    #[serde(skip)]
-    loaded_meshes: Vec<LoadedMesh>
-}
-
-impl GLTF {
-    fn load_meshes(&self) -> Vec<LoadedMesh> {
-        let mut loaded_meshes: Vec<LoadedMesh> = vec!();
-
-        for mesh in &self.meshes {
-            let mut loaded_primitives: Vec<LoadedPrimitive> = vec!();
-
-            for primitive in &mesh.primitives {
-                loaded_primitives.push(LoadedPrimitive {
-                    vertex_positions: self.get_buffer_data_for_accessor(primitive.attributes.position as i32),
-                    vertex_indices: self.get_buffer_data_for_accessor(primitive.indices as i32),
-                    vertex_colors: Some(self.get_buffer_data_for_accessor(primitive.attributes.color_0 as i32))
-                });
-            }
-
-            loaded_meshes.push(LoadedMesh {
-                loaded_primitives
-            });
-        }
-
-        loaded_meshes
-    }
-
-    fn get_buffer_data_for_accessor(&self, accessor_index: i32) -> LoadedBuffer {
-        let accessor = &self.accessors[accessor_index as usize];
-
-        let buffer_component = match accessor.element_type.as_str() {
-            "VEC3" => BufferComponent::Vec3,
-            "VEC4" => BufferComponent::Vec4,
-            "SCALAR" => BufferComponent::Scalar,
-            _ => panic!("Unsupported element type: {}", accessor.element_type)
-        };
-
-        let buffer_component_type = match accessor.component_type {
-            5123 => if accessor.normalized { BufferComponentType::UnsignedShortNormalized } else { BufferComponentType::UnsignedShort },
-            5126 => BufferComponentType::Float32,
-            _ => panic!("Unsupported component type {}", accessor.component_type)
-        };
-
-        let buffer_view = &self.buffer_views[accessor.buffer_view as usize];
-        let buffer = &self.buffers[buffer_view.buffer as usize];
-
-        // TODO: Instead of copying buffer data, perhaps I should just have my
-        // "LoadedBuffer" contain a reference to the underlying data returned from buffer.get_data.
-        // Meaning, the lifetime of the underlying buffer data is attached to the GLTF model struct, which might make sense.
-        let mut buffer_data: Vec<u8> = vec![0; buffer_view.byte_length as usize];
-        buffer_data.copy_from_slice(&buffer.get_data()[buffer_view.byte_offset as usize..(buffer_view.byte_offset + buffer_view.byte_length) as usize]);
-
-        LoadedBuffer {
-            buffer_data,
-            buffer_component,
-            buffer_component_type
-        }
-    }
-}
-
-/*
-    An Accessor defines a method for retrieving data as typed arrays
-    from within a "Buffer View".
-
-    The Accessor will specify things such as the component type, data type,
-    the number of elements, etc...
-*/
-#[derive(Serialize, Deserialize, Debug)]
-#[serde(rename_all = "camelCase")]
-struct Accessor {
-    // A reference index to the buffer view containing the corresponding data
-    buffer_view: u32,
-    // The data type of each individual value (component)
-    // 5123 = Unsigned Short, 16 bits, 2 bytes
-    // 5126 = float, 32 bits, 4 bytes
-    component_type: u32,
-    // Count is the number of elements in the buffer
-    count: u32,
-    #[serde(default)]
-    normalized: bool,
-    // The type of element that components are described as.
-    // VEC3 = 3 components
-    #[serde(rename = "type")]
-    element_type: String
-}
-
-/*
-    A "Buffer View" represents a contiguous segment of data
-    in a buffer. You can have multiple buffer views into the same
-    underlying buffer.
-*/
-#[derive(Serialize, Deserialize, Debug)]
-#[serde(rename_all = "camelCase")]
-struct BufferView {
-    // A reference index to an underlying buffer.
-    buffer: u32,
-    // The amount of bytes in the buffer that this view cares about
-    byte_length: u32,
-    // The start offset in bytes for this buffer view.
-    byte_offset: u32
-}
-
-// TODO: Using a variant of Interior Mutability pattern to mutate decoded_buffer
-// Even though it's behind an immutable reference
-#[derive(Serialize, Deserialize, Debug)]
-#[serde(rename_all = "camelCase")]
-struct Buffer {
-    byte_length: u32,
-    uri: String,
-    #[serde(skip)]
-    decoded_buffer: RefCell<Vec<u8>>
-}
-
-impl Buffer {
-    pub fn get_data(&self) -> Ref<Vec<u8>> {
-        if self.decoded_buffer.borrow().is_empty() {
-            self.decoded_buffer.replace(self.decode_base64_data_uri(&self.uri));
-        }
-
-        self.decoded_buffer.borrow()
-    }
-
-    fn decode_base64_data_uri(&self, data_uri: &str) -> Vec<u8> {
-        // https://en.wikipedia.org/wiki/Data_URI_scheme
-        // data:[<media type>][;base64],<data>
-        // TODO:
-        //   Currently I'm very naive about my data URI parsing.
-        //   Basically I only accept the strict starting format of "data:application/octet-stream;base64"
-        if !data_uri.starts_with("data:application/octet-stream;base64") {
-            panic!("Unsupported data URI encountered: {}", data_uri);
-        }
-    
-        let data_in_base64 = data_uri.split_once(",").unwrap().1;
-    
-        base64::decode(data_in_base64).unwrap()
-    }
-}
-
-/*
-    Meshes in GLTF represents the data required for GPU draw calls.
-*/
-#[derive(Serialize, Deserialize, Debug)]
-struct Mesh {
-    name: String,
-    primitives: Vec<Primitive>
-}
-
-/*
-    Primitives are the actual structures that describes the data
-    needed in order to make a GPU draw call for that primitive.
-*/
-#[derive(Serialize, Deserialize, Debug)]
-struct Primitive {
-    /*
-        Each attribute is a value to an index of an accessor which
-        contains the data for the attribute.
-    */
-    attributes: Attribute,
-    /*
-        Primitives that are indexed defines this indices property.
-        This value is a reference to an accessor containing the corresponding data.
-    */
-    indices: u32
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-struct Attribute {
-    #[serde(rename = "POSITION")]
-    position: u32,
-    #[serde(rename = "COLOR_0", default)]
-    color_0: u32
 }
 
 fn main() {
@@ -282,6 +91,9 @@ fn main() {
 
         let dx_device = &dx::DX.as_ref().unwrap().device;
         let dx_device_context = &dx::DX.as_ref().unwrap().context;
+
+        let window_helper = window::Window::default();
+        SetWindowLongPtrA(main_window, GWLP_USERDATA, &window_helper as *const _ as isize);
 
         // Create the swap chain.
 
@@ -389,8 +201,7 @@ fn main() {
 
         let path_to_mesh = current_executable_path.parent().unwrap().join("resources\\colored_plane\\colored_plane.gltf");
 
-        let gltf_file_content = fs::read_to_string(path_to_mesh).unwrap();
-        let mut gltf: GLTF = serde_json::from_str(&gltf_file_content).unwrap();
+        let gltf = gltf::GLTF::new(path_to_mesh);
 
         let meshes = gltf.load_meshes();
         let mesh = meshes.first().unwrap();
@@ -608,8 +419,8 @@ fn main() {
                 // The "Map" method retrieves a pointer to the data contained in a subresource (such as our constant buffer), and we can then use
                 // That pointer to update its data.
                 // When you call the Map method, the GPU will have its access to that subresource denied.
-                let lol = vertex_constant_buffer.as_ref().unwrap();
-                let mapped_resource = dx_device_context.Map(lol, 0, D3D11_MAP_WRITE_DISCARD, 0);
+                let vertex_constant_buffer_ref = vertex_constant_buffer.as_ref().unwrap();
+                let mapped_resource = dx_device_context.Map(vertex_constant_buffer_ref, 0, D3D11_MAP_WRITE_DISCARD, 0);
 
                 if mapped_resource.is_err() {
                     panic!("Failed to retrieve mapped resource for world matrix!");
@@ -628,7 +439,7 @@ fn main() {
 
                 // After we're done mapping new data, we have to call Unmap in order to invalidate the pointer to the buffer
                 // And reenable the GPU's access to that resource
-                dx_device_context.Unmap(lol, 0);
+                dx_device_context.Unmap(vertex_constant_buffer_ref, 0);
 
                 dx_device_context.ClearRenderTargetView(
                     &back_buffer_render_target_view, &clear_color.as_array()[0]);
@@ -691,153 +502,6 @@ fn create_buffer<T>(bufferType: BufferType, usage: Usage, cpu_access: CpuAccess,
             Err(err) => panic!("Failed to create buffer: {}", err)
         }
     }
-}
-
-enum VertexBufferFormat {
-    Vec3Float,
-    ScalarUnsignedShort
-}
-
-struct RawMesh {
-    vertex_buffer: ID3D11Buffer,
-    vertex_buffer_format: VertexBufferFormat,
-    index_buffer: ID3D11Buffer
-}
-
-// TODO:
-//   Currently my load_model function is heavily mixed up in both interpreting the actual data of the model,
-//   As well as creating certain DX buffers for parts of the model (like vertex buffer, index buffer, etc...)
-//   Perhaps the function should really only return a structure of all the mesh's data, and then let another part
-//   Of the codebase deal with how buffers specifically for DX should be created...
-fn load_model(gltf_file_path: &PathBuf, dx_device: &ID3D11Device) -> RawMesh {
-    unsafe {
-        let gltf_file_content = fs::read_to_string(gltf_file_path).unwrap();
-        let mut gltf: GLTF = serde_json::from_str(&gltf_file_content).unwrap();
-
-        // TODO: Currently only supporting a single mesh
-        if (gltf.meshes.len() > 1) {
-            panic!("Unsupported amount of meshes.");
-        }
-
-        let mut vertex_buffer: Option<ID3D11Buffer> = None;
-        let mut vertex_buffer_format: Option<VertexBufferFormat> = None;
-        let mut index_buffer: Option<ID3D11Buffer> = None;
-    
-        for mesh in gltf.meshes {
-            // TODO: Currently only supporting simple meshes consisting of 1 primitive
-            if mesh.primitives.len() > 1 {
-                panic!("Unsupported amount of primitives.");
-            }
-    
-            for primitive in mesh.primitives {
-                let vertex_position_accessor_index = primitive.attributes.position;
-                let vertex_position_accessor = &gltf.accessors[vertex_position_accessor_index as usize];
-    
-                // Vertex Position
-                // TODO: I can definitely do a better job at defining these magic literals as descriptive variabels or types
-                if vertex_position_accessor.component_type == 5126
-                    && vertex_position_accessor.element_type == "VEC3" {
-                        vertex_buffer_format = Some(VertexBufferFormat::Vec3Float);
-                } else {
-                    panic!("Unsupported combination of component type {} and element type {}", vertex_position_accessor.component_type, vertex_position_accessor.element_type);
-                }
-    
-                let vertex_position_buffer_view = &gltf.buffer_views[vertex_position_accessor.buffer_view as usize];
-                let vertex_position_buffer_index = vertex_position_buffer_view.buffer;
-                let vertex_position_byte_length = vertex_position_buffer_view.byte_length;
-                let vertex_position_byte_offset = vertex_position_buffer_view.byte_offset;
-    
-                // TODO: Look... I know this isn't readable, okay? It'll improve!
-                let raw_buffer_data = &mut gltf.buffers[vertex_position_buffer_index as usize];
-                let mut vertex_buffer_data: Vec<u8> = vec![0; vertex_position_byte_length as usize];
-                //vertex_buffer_data.copy_from_slice(&mut raw_buffer_data.get_data(vertex_position_byte_offset, vertex_position_byte_length));
-    
-                let mut vertex_buffer_description = D3D11_BUFFER_DESC::default();
-                vertex_buffer_description.ByteWidth = (mem::size_of::<u8>() * vertex_buffer_data.len()) as u32;
-                vertex_buffer_description.Usage = D3D11_USAGE_DEFAULT;
-                vertex_buffer_description.BindFlags = D3D11_BIND_VERTEX_BUFFER;
-    
-                let mut vertex_buffer_subresource = D3D11_SUBRESOURCE_DATA::default();
-                vertex_buffer_subresource.pSysMem = vertex_buffer_data.as_ptr() as *mut c_void;
-    
-                vertex_buffer =
-                    match dx_device.CreateBuffer(&vertex_buffer_description, &vertex_buffer_subresource) {
-                        Ok(buffer) => Some(buffer),
-                        Err(err) => panic!("Failed to create vertex buffer: {}", err)
-                    };
-
-                // COLOR
-
-
-                // Vertex Indices
-                let vertex_indices_accessor_index = primitive.indices;
-                let vertex_indices_accessor = &gltf.accessors[vertex_indices_accessor_index as usize];
-
-                if vertex_indices_accessor.component_type != 5123 &&
-                    vertex_indices_accessor.element_type != "SCALAR" {
-                        panic!("Unsupported index buffer component type and element type: {}, {}", vertex_indices_accessor.component_type, vertex_indices_accessor.element_type);
-                    }
-
-                let vertex_indices_buffer_view = &gltf.buffer_views[vertex_indices_accessor.buffer_view as usize];
-                let vertex_indices_buffer_index = vertex_indices_buffer_view.buffer;
-
-                let mut vertex_indices_buffer_data: Vec<u8> = vec![0; vertex_indices_buffer_view.byte_length as usize];
-                //vertex_indices_buffer_data.copy_from_slice(&mut gltf.buffers[vertex_indices_buffer_index as usize].get_data(vertex_indices_buffer_view.byte_offset, vertex_indices_buffer_view.byte_length));
-
-                let mut index_buffer_description = D3D11_BUFFER_DESC::default();
-                index_buffer_description.ByteWidth = (mem::size_of::<u8>() * vertex_indices_buffer_data.len()) as u32;
-                index_buffer_description.Usage = D3D11_USAGE_DEFAULT;
-                index_buffer_description.BindFlags = D3D11_BIND_INDEX_BUFFER;
-
-                let mut index_buffer_data = D3D11_SUBRESOURCE_DATA::default();
-                index_buffer_data.pSysMem = vertex_indices_buffer_data.as_mut_ptr() as *mut c_void;
-
-                index_buffer = match dx_device.CreateBuffer(&index_buffer_description, &index_buffer_data) {
-                    Ok(id) => Some(id),
-                    Err(err) => panic!("Failed to create index buffer: {}", err)
-                };
-            }
-        }
-
-        RawMesh {
-            vertex_buffer: vertex_buffer.unwrap(),
-            vertex_buffer_format: vertex_buffer_format.unwrap(),
-            index_buffer: index_buffer.unwrap()
-        }
-    }
-}
-
-#[derive(Debug)]
-struct LoadedMesh {
-    loaded_primitives: Vec<LoadedPrimitive>
-}
-
-#[derive(Debug)]
-struct LoadedPrimitive {
-    vertex_indices: LoadedBuffer,
-    vertex_positions: LoadedBuffer,
-    vertex_colors: Option<LoadedBuffer>,
-}
-
-#[derive(Debug)]
-struct LoadedBuffer {
-    buffer_data: Vec<u8>,
-    buffer_component: BufferComponent,
-    buffer_component_type: BufferComponentType
-}
-
-#[derive(Debug)]
-enum BufferComponent {
-    Vec3,
-    Vec4,
-    Scalar
-}
-
-#[derive(Debug)]
-enum BufferComponentType {
-    Float32,
-    UnsignedShort,
-    UnsignedShortNormalized
 }
 
 fn create_swap_chain_description(main_window: isize) -> DXGI_SWAP_CHAIN_DESC {
@@ -907,17 +571,32 @@ fn create_swap_chain_description(main_window: isize) -> DXGI_SWAP_CHAIN_DESC {
 
 extern "system" fn wndproc(window: HWND, message: u32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
     unsafe {
+        let window_helper = GetWindowLongPtrA(window, GWLP_USERDATA) as *mut window::Window;
+
         match message {
-            // WM_CHAR is a message that is posed after calling TranslateMessage + DispatchMessage.
-            // It contains the character encoding of whatever virtual-key was pressed
-            // In the message's WPARAM.
+            // WM_CHAR is a message that is posted after calling TranslateMessage + DispatchMessage.
+            // It contains the character encoding of whatever virtual-key was pressed in the message's WPARAM.
             // WM_CHARs will not be generated for non-character keys (like arrow keys, delete, enter, etc...)
             WM_CHAR => {
-                println!("Character key was pressed!");
+                0
+            },
+            // WM_KEYDOWN is posted to the window when a nonsystem key is pressed.
+            // WPARAM wil contain the virtual-key code of the nonsystem key.
+            WM_KEYDOWN => {
+                let mapped_key = window::map_to_key(wparam as i32);
+                // TODO: Could probably do a better job of encapsulating the hashset in the "Window" struct, and instead expose
+                // A method to register and unregister key entries.
+                window_helper.as_mut().unwrap().current_keyboard_state.insert(mapped_key);
+                0
+            },
+            // WM_KEYUP is posted to the window when a nonsystem key is released.
+            // WPARAM will contain the virtual-key code of the nonsystem key.
+            WM_KEYUP => {
+                let mapped_key = window::map_to_key(wparam as i32);
+                window_helper.as_mut().unwrap().current_keyboard_state.remove(&mapped_key);
                 0
             },
             WM_DESTROY => {
-                println!("Destroying window!");
                 PostQuitMessage(0);
                 0
             },
