@@ -1,3 +1,10 @@
+use windows::{
+    Win32::{
+        UI::WindowsAndMessaging::{SetCursorPos, GetForegroundWindow},
+        Foundation::{HWND}
+    }
+};
+
 use std::collections::HashSet;
 
 #[derive(PartialEq, Eq, Hash, Clone, Copy, Debug)]
@@ -35,7 +42,10 @@ pub fn map_to_key(virtual_key_code: i32) -> Key {
 #[derive(Default)]
 pub struct Window {
     pub current_keyboard_state: HashSet<Key>,
-    pub previous_keyboard_state: HashSet<Key>
+    pub previous_keyboard_state: HashSet<Key>,
+
+    // TODO: hwnd should perhaps be hidden behind a constructor. Public for now.
+    pub hwnd: HWND
 }
 
 impl Window {
@@ -49,6 +59,19 @@ impl Window {
     
     pub fn was_key_released(&self, key: Key) -> bool {
         !self.current_keyboard_state.contains(&key) && self.previous_keyboard_state.contains(&key)
+    }
+
+    pub fn center_cursor(&self) {
+        unsafe {
+            // I only want to center the cursor when the game window is the active / foreground window.
+            let current_foreground_window = GetForegroundWindow();
+            if current_foreground_window != 0 {
+                if self.hwnd == current_foreground_window {
+                    // TODO: Move window dimensions to window struct, instead of values everywhere in the code!
+                    SetCursorPos(800 / 2, 600 / 2);
+                }
+            }
+        }
     }
 
     pub fn update(&mut self) {

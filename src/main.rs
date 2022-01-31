@@ -92,7 +92,8 @@ fn main() {
         let dx_device = &dx::DX.as_ref().unwrap().device;
         let dx_device_context = &dx::DX.as_ref().unwrap().context;
 
-        let window_helper = window::Window::default();
+        let mut window_helper = window::Window::default();
+        window_helper.hwnd = main_window;
         SetWindowLongPtrA(main_window, GWLP_USERDATA, &window_helper as *const _ as isize);
 
         // Create the swap chain.
@@ -411,6 +412,16 @@ fn main() {
                 DispatchMessageW(&current_message);
             } else {
                 // GAME LOOP
+                if window_helper.is_key_pressed(window::Key::S) {
+                    camera.position.z -= 0.5;
+                }
+
+                if window_helper.is_key_pressed(window::Key::W) {
+                    camera.position.z += 0.5;
+                }
+
+                window_helper.center_cursor();
+                window_helper.update();
 
                 // RENDER
                 let clear_color = beagle_math::Vector4::new(0.45, 0.6, 0.95, 1.0);
