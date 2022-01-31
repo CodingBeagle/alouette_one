@@ -109,7 +109,7 @@ impl Window {
             }
 
             self.mouse_move_x = mouse_position.x - self.previous_mouse_position_x;
-            self.mouse_move_y = mouse_position.y - self.previous_mouse_position_y;
+            self.mouse_move_y = self.previous_mouse_position_y - mouse_position.y;
     
             self.center_cursor();
 
