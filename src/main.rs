@@ -93,6 +93,7 @@ fn main() {
         let dx_device_context = &dx::DX.as_ref().unwrap().context;
 
         let mut window_helper = window::Window::default();
+        window_helper.lock_cursor_center = true;
         window_helper.hwnd = main_window;
         SetWindowLongPtrA(main_window, GWLP_USERDATA, &window_helper as *const _ as isize);
 
@@ -420,7 +421,10 @@ fn main() {
                     camera.position.z += 0.5;
                 }
 
-                window_helper.center_cursor();
+                if window_helper.is_key_pressed(window::Key::Escape) {
+                    should_quit = true;
+                }
+
                 window_helper.update();
 
                 // RENDER
