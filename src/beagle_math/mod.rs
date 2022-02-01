@@ -4,6 +4,15 @@ use std::fmt::{self};
 // Need the trait "Copy"
 use std::marker::{Copy};
 
+/*
+    NOTICE:
+
+    My Math API currently has transform and projection matrices design in terms of:
+
+    - Row-Major Vector Convention: Not talking about memory layout here. Meaning, my matrices are design from the point of view of being multiplied by ROW vectors.
+    - Projection and View matrices currently assume Left-Handedness, as this is what is ultimately assumed by the Rasterizer stage of DirectX 11.
+*/
+
 #[derive(Default, Clone, Copy)]
 pub struct Vector2
 {
@@ -196,8 +205,8 @@ impl Mat4
     pub fn rotate_z(rad: f32) -> Mat4 {
         Mat4 {
             matrix: [
-                rad.cos(), -rad.sin(), 0.0, 0.0,
-                rad.sin(), rad.cos(), 0.0, 0.0,
+                rad.cos(), rad.sin(), 0.0, 0.0,
+                -rad.sin(), rad.cos(), 0.0, 0.0,
                 0.0, 0.0, 1.0, 0.0,
                 0.0, 0.0, 0.0, 1.0
             ]
@@ -215,6 +224,9 @@ impl Mat4
         let x_scale = y_scale / (width / height);
         let q = far / (far - near);
 
+        /*
+            This is a left-handed perspective projection.
+        */
         Mat4 {
             matrix: [
                 x_scale, 0.0    , 0.0      , 0.0,

@@ -30,6 +30,8 @@ A vertex shader must always end up producing a coordinate in homogenous coordina
 
 The rasterizer stage assumes homogenous clip-space coordinates as input.
 
+In this coordinate space, the X axis points right, Y points up, and Z points away from the camera.
+
 It is in the rasterizer stage which will:
 
 - Perform clipping to the view frustum.
