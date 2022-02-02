@@ -18,23 +18,37 @@ pub enum Key {
     D,
     W,
     S,
+    E,
+    Q,
     Escape
 }
 
 pub fn map_to_key(virtual_key_code: i32) -> Key {
     // https://docs.microsoft.com/en-us/windows/win32/inputdev/virtual-key-codes
     match virtual_key_code {
+        0x26 => {
+            Key::UpArrow
+        },
+        0x28 => {
+            Key::DownArrow
+        },
         0x41 => {
             Key::A
         },
         0x44 => {
             Key::D
         },
+        0x45 => {
+            Key::E
+        },
         0x53 => {
             Key::S
         },
         0x57 => {
             Key::W
+        },
+        0x51 => {
+            Key::Q
         },
         0x1B => {
             Key::Escape

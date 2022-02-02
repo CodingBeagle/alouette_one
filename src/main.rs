@@ -10,7 +10,7 @@ use windows::{
     }, core::{Interface, DefaultType}  
 };
 
-use std::{mem::{size_of, self}, os::windows::prelude::OsStrExt, env, fs};
+use std::{mem::{size_of, self}, os::windows::prelude::OsStrExt, env, fs, ops::Mul};
 use std::ptr;
 use std::ffi::*;
 use std::collections::{HashMap};
@@ -25,12 +25,21 @@ mod window;
 #[derive(Default)]
 struct Camera {
     position: beagle_math::Vector3,
-    orientation: beagle_math::Vector3
+    orientation: beagle_math::Vector3,
+    pitch_in_radians: f32,
+    yaw_in_radians: f32
 }
 
 impl Camera {
     fn view_matrix(&self) -> beagle_math::Mat4 {
-        beagle_math::Mat4::translate(&beagle_math::Vector3::new(self.position.x * -1.0, self.position.y * -1.0, self.position.z * -1.0)) 
+        println!("Pitch {}", self.pitch_in_radians);
+        // View Matrix: Translate * Rotate
+        let pitch_rotation_matrix = beagle_math::Quaternion::Rotation(
+            beagle_math::Vector3::new(1.0, 0.0, 0.0), self.pitch_in_radians);
+
+        let translate_matrix = beagle_math::Mat4::translate(&beagle_math::Vector3::new(self.position.x * -1.0, self.position.y * -1.0, self.position.z * -1.0));
+
+        translate_matrix.mul(&pitch_rotation_matrix)
     }
 }
 
@@ -413,6 +422,14 @@ fn main() {
                 DispatchMessageW(&current_message);
             } else {
                 // GAME LOOP
+                if window_helper.is_key_pressed(window::Key::Q) {
+                    camera.position.y += 0.5;
+                }
+
+                if window_helper.is_key_pressed(window::Key::E) {
+                    camera.position.y -= 0.5;
+                }
+
                 if window_helper.is_key_pressed(window::Key::S) {
                     camera.position.z -= 0.5;
                 }
@@ -423,6 +440,14 @@ fn main() {
 
                 if window_helper.is_key_pressed(window::Key::Escape) {
                     should_quit = true;
+                }
+
+                if window_helper.is_key_pressed(window::Key::UpArrow) {
+                    camera.pitch_in_radians += 0.02;
+                }
+
+                if window_helper.is_key_pressed(window::Key::DownArrow) {
+                    camera.pitch_in_radians -= 0.02;
                 }
 
                 window_helper.update();
@@ -443,8 +468,10 @@ fn main() {
 
                 let rofl = mapped_resource.unwrap().pData as *mut VertexConstantBuffer;
 
+                let view_matrix = camera.view_matrix();
+
                 // MY MATH LIBRARY CURRENTLY USES ROW-MAJOR CONVENTION, THIS MEANS THAT YOUR TYPICAL P * V * TRSv order becomes vSRT * VIEW * PROJECTION
-                (*rofl).worldViewProjection = camera.view_matrix().mul(&beagle_math::Mat4::projection((45.0f32).to_radians(), 800.0, 600.0, 0.1, 100.0));
+                (*rofl).worldViewProjection = view_matrix.mul(&beagle_math::Mat4::projection((45.0f32).to_radians(), 800.0, 600.0, 0.1, 100.0));
                 
                 // My matrices are all designed for being multipled with a ROW vector.
                 // Also, I store my matrices in row-major order in memory.

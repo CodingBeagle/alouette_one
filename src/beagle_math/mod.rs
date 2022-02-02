@@ -277,6 +277,51 @@ pub struct Quaternion {
 }
 
 impl Quaternion {
+    pub fn set_rotation(&mut self, axis: Vector3, angle_in_radians: f32)
+    {
+        let angle_in_radians = angle_in_radians / 2f32;
+
+        self.quat = Vector4::new(
+            angle_in_radians.sin() * axis.x,
+            angle_in_radians.sin() * axis.y,
+            angle_in_radians.sin() * axis.z,
+            angle_in_radians.cos()
+        );
+    }
+
+    pub fn to_matrix(&self) -> Mat4 {
+        let q = self.quat.normalize();
+
+        let m11 = 1.0 - 2.0 * q.y.powf(2.0) - 2.0 * q.z.powf(2.0);
+        let m12 = 2.0 * q.x * q.y + 2.0 * q.z * q.w;
+        let m13 = 2.0 * q.x * q.z - 2.0 * q.y * q.w;
+        let m14 = 0.0;
+
+        let m21 = 2.0 * q.x * q.y - 2.0 * q.z * q.w;
+        let m22 = 1.0 - 2.0 * q.x.powf(2.0) - 2.0 * q.z.powf(2.0);
+        let m23 = 2.0 * q.y * q.z + 2.0 * q.x * q.w;
+        let m24 = 0.0;
+
+        let m31 = 2.0 * q.x * q.z + 2.0 * q.y * q.w;
+        let m32 = 2.0 * q.y * q.z - 2.0 * q.x * q.w;
+        let m33 = 1.0 - 2.0 * q.x.powf(2.0) - 2.0 * q.y.powf(2.0);
+        let m34 = 0.0;
+
+        let m41 = 0.0;
+        let m42 = 0.0;
+        let m43 = 0.0;
+        let m44 = 1.0;
+
+        let m = Mat4::new([
+            m11, m12, m13, m14,
+            m21, m22, m23, m24,
+            m31, m32, m33, m34,
+            m41, m42, m43, m44
+        ]);
+
+        m
+    }
+
     pub fn Rotation(axis: Vector3, angle_in_radians: f32) -> Mat4 {
         let angle = angle_in_radians / 2.0;
 
