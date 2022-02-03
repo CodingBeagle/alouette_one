@@ -63,6 +63,13 @@ impl Vector3 {
             y,
             z
         }
+    }    
+
+    pub fn cross(&self, vec: &Vector3) -> Vector3 {
+        Vector3::new(
+            self.y * vec.z - self.z * vec.y,
+            self.z * vec.x - self.x * vec.z,
+            self.x * vec.y - self.y * vec.x)
     }
 
     pub fn dot(&self, vec: &Vector3) -> f32 {
@@ -455,5 +462,17 @@ mod tests {
         let normalized = my_vector.normalize();
 
         println!("normalized: {:?}", normalized);
+    }
+
+    #[test]
+    fn should_calculate_crossproduct_correctly() {
+        let vec_a = Vector3::new(2.0, 3.0, 4.0);
+        let vec_b = Vector3::new(5.0, 6.0, 7.0);
+
+        let cross_product = vec_a.cross(&vec_b);
+
+        assert!(cross_product.x.eq(&-3f32));
+        assert!(cross_product.y.eq(&6f32));
+        assert!(cross_product.z.eq(&-3f32));
     }
 }

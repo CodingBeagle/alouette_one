@@ -24,6 +24,7 @@ mod window;
 
 #[derive(Default)]
 struct Camera {
+    forward_vec: beagle_math::Vector3,
     position: beagle_math::Vector3,
     orientation: beagle_math::Vector3,
     pitch_in_radians: f32,
@@ -32,7 +33,6 @@ struct Camera {
 
 impl Camera {
     fn view_matrix(&self) -> beagle_math::Mat4 {
-        println!("Pitch {}", self.pitch_in_radians);
         // View Matrix: Translate * Rotate
         let pitch_rotation_matrix = beagle_math::Quaternion::Rotation(
             beagle_math::Vector3::new(1.0, 0.0, 0.0), self.pitch_in_radians);
