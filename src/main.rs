@@ -54,6 +54,9 @@ impl Camera {
         let mut pitch_rot = beagle_math::Quaternion::default();
         pitch_rot.set_rotation(right_vector, self.pitch_in_radians);
 
+        // TODO: Read up on the whole... order of multiplication for my matrices and quaternions...
+        // Try to understand what's up...
+        // Right now, my camera rotation is in order of: pitch_rot * yaw_rot
         let res = yaw_rot.cross(&pitch_rot);
         
 
