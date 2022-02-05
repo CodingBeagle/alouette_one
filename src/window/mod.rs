@@ -26,8 +26,14 @@ pub enum Key {
 pub fn map_to_key(virtual_key_code: i32) -> Key {
     // https://docs.microsoft.com/en-us/windows/win32/inputdev/virtual-key-codes
     match virtual_key_code {
+        0x25 => {
+            Key::LeftArrow
+        },
         0x26 => {
             Key::UpArrow
+        },
+        0x27 => {
+            Key::RightArrow
         },
         0x28 => {
             Key::DownArrow

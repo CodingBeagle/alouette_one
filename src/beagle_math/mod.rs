@@ -63,7 +63,14 @@ impl Vector3 {
             y,
             z
         }
-    }    
+    }
+
+    pub fn add(&self, vec: &Vector3) -> Vector3 {
+        Vector3::new(
+            self.x + vec.x,
+            self.y + vec.y,
+            self.z + vec.z)
+    }
 
     pub fn cross(&self, vec: &Vector3) -> Vector3 {
         Vector3::new(
@@ -74,6 +81,10 @@ impl Vector3 {
 
     pub fn dot(&self, vec: &Vector3) -> f32 {
         self.x * vec.x + self.y * vec.y + self.z * vec.z
+    }
+
+    pub fn mul(&self, scalar: f32) -> Vector3 {
+        Vector3::new(self.x * scalar, self.y * scalar, self.z * scalar)
     }
 }
 
@@ -279,25 +290,54 @@ impl Mat4
     }
 }
 
+#[derive(Default)]
 pub struct Quaternion {
-    quat: Vector4
+    w: f32,
+    v: Vector3
 }
 
 impl Quaternion {
+    pub fn new(w: f32, x: f32, y: f32, z: f32) -> Quaternion {
+        Quaternion {
+            w,
+            v: Vector3::new(x, y, z)
+        }
+    }
+
     pub fn set_rotation(&mut self, axis: Vector3, angle_in_radians: f32)
     {
         let angle_in_radians = angle_in_radians / 2f32;
 
-        self.quat = Vector4::new(
+        self.w = angle_in_radians.cos();
+        self.v = Vector3::new(
             angle_in_radians.sin() * axis.x,
             angle_in_radians.sin() * axis.y,
-            angle_in_radians.sin() * axis.z,
-            angle_in_radians.cos()
-        );
+            angle_in_radians.sin() * axis.z);
+    }
+
+    // TODO:
+    //  Currently using standard formula for quaternion cross product.
+    //  This means that you have to remember to apply quaternions "backwards",
+    //  From "right to left".
+    //  That is, if you want to multiply two quaternions q1 * q2,
+    //  This function call would have to look like: q2.cross(&q1)
+    pub fn cross(&self, other: &Quaternion) -> Quaternion {
+        let v1 = self.v;
+        let v2 = other.v;
+
+        let mut v3 = v2.mul(self.w);
+        v3 = v3.add(&v1.mul(other.w));
+        v3 = v3.add(&v2.cross(&v1));
+
+        Quaternion::new(
+            self.w * other.w - v1.dot(&v2),
+            v3.x,
+            v3.y,
+            v3.z)
     }
 
     pub fn to_matrix(&self) -> Mat4 {
-        let q = self.quat.normalize();
+        let q = Vector4::new(self.v.x, self.v.y, self.v.z, self.w).normalize();
 
         let m11 = 1.0 - 2.0 * q.y.powf(2.0) - 2.0 * q.z.powf(2.0);
         let m12 = 2.0 * q.x * q.y + 2.0 * q.z * q.w;
@@ -474,5 +514,27 @@ mod tests {
         assert!(cross_product.x.eq(&-3f32));
         assert!(cross_product.y.eq(&6f32));
         assert!(cross_product.z.eq(&-3f32));
+    }
+    
+    #[test]
+    fn should_calculate_dotproduct_correctly()
+    {
+        let v1 = Vector3::new(1.0, 2.0, 3.0);
+        let v2 = Vector3::new(1.0, 5.0, 7.0);
+
+        let dotproduct = v1.dot(&v2);
+
+        assert!(dotproduct.eq(&32.0f32));
+    }
+
+    #[test]
+    fn should_calculate_quat_crossproduct_correctly() {
+        let q1 = Quaternion::new(1.0, 2.0, 1.0, 4.0);
+        let q2 = Quaternion::new(2.0, 6.0, 3.0, 2.0);
+
+        let cross = q2.cross(&q1);
+
+        println!("Quat is:");
+        println!("{}, {}, {}, {}", cross.w, cross.v.x, cross.v.y, cross.v.z);
     }
 }

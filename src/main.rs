@@ -28,18 +28,40 @@ struct Camera {
     position: beagle_math::Vector3,
     orientation: beagle_math::Vector3,
     pitch_in_radians: f32,
-    yaw_in_radians: f32
+    yaw_in_radians: f32,
+    quat_orient: beagle_math::Quaternion
 }
 
 impl Camera {
     fn view_matrix(&self) -> beagle_math::Mat4 {
-        // View Matrix: Translate * Rotate
-        let pitch_rotation_matrix = beagle_math::Quaternion::Rotation(
-            beagle_math::Vector3::new(1.0, 0.0, 0.0), self.pitch_in_radians);
+        let up_vector = beagle_math::Vector3::new(0.0, 1.0, 0.0);
+        let right_vector = beagle_math::Vector3::new(1.0, 0.0, 0.0);
 
+        /*
+        let pitch_rot = beagle_math::Quaternion::Rotation(
+            right_vector, 
+            self.pitch_in_radians);
+
+        let yaw_rot = beagle_math::Quaternion::Rotation(
+            up_vector,
+            self.yaw_in_radians);
+
+        let res =  */
+
+        let mut yaw_rot = beagle_math::Quaternion::default();
+        yaw_rot.set_rotation(up_vector, self.yaw_in_radians);
+
+        let mut pitch_rot = beagle_math::Quaternion::default();
+        pitch_rot.set_rotation(right_vector, self.pitch_in_radians);
+
+        let res = yaw_rot.cross(&pitch_rot);
+        
+
+        // View Matrix: Translate * Rotate
+        let rot_matrix = res.to_matrix();
         let translate_matrix = beagle_math::Mat4::translate(&beagle_math::Vector3::new(self.position.x * -1.0, self.position.y * -1.0, self.position.z * -1.0));
 
-        translate_matrix.mul(&pitch_rotation_matrix)
+        translate_matrix.mul(&rot_matrix)
     }
 }
 
@@ -448,6 +470,10 @@ fn main() {
 
                 if window_helper.is_key_pressed(window::Key::DownArrow) {
                     camera.pitch_in_radians -= 0.02;
+                }
+
+                if window_helper.is_key_pressed(window::Key::LeftArrow) {
+                    camera.yaw_in_radians += 0.02;
                 }
 
                 window_helper.update();
