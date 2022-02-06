@@ -9,7 +9,7 @@ use std::marker::{Copy};
 
     My Math API currently has transform and projection matrices design in terms of:
 
-    - Row-Major Vector Convention: Not talking about memory layout here. Meaning, my matrices are design from the point of view of being multiplied by ROW vectors.
+    - Row-Major Vector Convention: Not talking about memory layout here. Meaning, my matrices are designed from the point of view of being multiplied by ROW vectors.
     - Projection and View matrices currently assume Left-Handedness, as this is what is ultimately assumed by the Rasterizer stage of DirectX 11.
 */
 
@@ -231,6 +231,14 @@ impl Mat4
         }
     }
 
+    pub fn mul_row(&self, row: &Vector4) -> Vector4 {
+        Vector4::new(
+            row.x * self.matrix[0] + row.y * self.matrix[4] + row.z * self.matrix[8] + row.w * self.matrix[12],
+            row.x * self.matrix[1] + row.y * self.matrix[5] + row.z * self.matrix[9] + row.w * self.matrix[13],
+            row.x * self.matrix[2] + row.y * self.matrix[6] + row.z * self.matrix[10] + row.w * self.matrix[14],
+            row.x * self.matrix[3] + row.y * self.matrix[7] + row.z * self.matrix[11] + row.w * self.matrix[15])
+    }
+
     pub fn tranpose(&mut self) {
         self.matrix = self.get_column_major_value()
     }
@@ -359,7 +367,7 @@ impl Quaternion {
         let m43 = 0.0;
         let m44 = 1.0;
 
-        let m = Mat4::new([
+        let mut m = Mat4::new([
             m11, m12, m13, m14,
             m21, m22, m23, m24,
             m31, m32, m33, m34,
@@ -525,6 +533,26 @@ mod tests {
         let dotproduct = v1.dot(&v2);
 
         assert!(dotproduct.eq(&32.0f32));
+    }
+
+    #[test]
+    fn should_calculate_row_mul_correctly()
+    {
+        let v = Vector4::new(1.0, 2.0, 3.0, 4.0);
+        
+        let m = Mat4::new([
+            2.0, 6.0, 7.0, 8.0,
+            1.0, 2.0, 0.0, 1.0,
+            2.0, 1.0, 4.0, 4.0,
+            6.0, 6.0, 7.0, 7.0
+        ]);
+
+        let result = m.mul_row(&v);
+
+        assert!(result.x.eq(&34.0f32));
+        assert!(result.y.eq(&37.0f32));
+        assert!(result.z.eq(&47.0f32));
+        assert!(result.w.eq(&50.0f32));
     }
 
     #[test]

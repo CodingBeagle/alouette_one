@@ -33,20 +33,9 @@ struct Camera {
 }
 
 impl Camera {
-    fn view_matrix(&self) -> beagle_math::Mat4 {
+    fn view_matrix(&mut self) -> beagle_math::Mat4 {
         let up_vector = beagle_math::Vector3::new(0.0, 1.0, 0.0);
         let right_vector = beagle_math::Vector3::new(1.0, 0.0, 0.0);
-
-        /*
-        let pitch_rot = beagle_math::Quaternion::Rotation(
-            right_vector, 
-            self.pitch_in_radians);
-
-        let yaw_rot = beagle_math::Quaternion::Rotation(
-            up_vector,
-            self.yaw_in_radians);
-
-        let res =  */
 
         let mut yaw_rot = beagle_math::Quaternion::default();
         yaw_rot.set_rotation(up_vector, self.yaw_in_radians);
@@ -58,13 +47,25 @@ impl Camera {
         // Try to understand what's up...
         // Right now, my camera rotation is in order of: pitch_rot * yaw_rot
         let res = yaw_rot.cross(&pitch_rot);
-        
+
+        self.quat_orient = res;
 
         // View Matrix: Translate * Rotate
-        let rot_matrix = res.to_matrix();
+        let rot_matrix = self.quat_orient.to_matrix();
         let translate_matrix = beagle_math::Mat4::translate(&beagle_math::Vector3::new(self.position.x * -1.0, self.position.y * -1.0, self.position.z * -1.0));
 
         translate_matrix.mul(&rot_matrix)
+    }
+
+    fn forward(&self) -> beagle_math::Vector3 {
+        let mut lol = self.quat_orient.to_matrix();
+
+        lol.tranpose();
+
+        let mut damn = lol.mul_row(&beagle_math::Vector4::new(0.0, 0.0, 1.0, 0.0));
+        damn = damn.normalize();
+
+        beagle_math::Vector3::new(damn.x, damn.y, damn.z)
     }
 }
 
@@ -456,11 +457,11 @@ fn main() {
                 }
 
                 if window_helper.is_key_pressed(window::Key::S) {
-                    camera.position.z -= 0.5;
+                    camera.position = camera.position.add(&camera.forward().mul(-1.0));
                 }
 
                 if window_helper.is_key_pressed(window::Key::W) {
-                    camera.position.z += 0.5;
+                    camera.position = camera.position.add(&camera.forward());
                 }
 
                 if window_helper.is_key_pressed(window::Key::Escape) {
@@ -477,6 +478,10 @@ fn main() {
 
                 if window_helper.is_key_pressed(window::Key::LeftArrow) {
                     camera.yaw_in_radians += 0.02;
+                }
+
+                if window_helper.is_key_pressed(window::Key::RightArrow) {
+                    camera.yaw_in_radians -= 0.02;
                 }
 
                 window_helper.update();
