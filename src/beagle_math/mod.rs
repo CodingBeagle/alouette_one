@@ -11,6 +11,7 @@ use std::marker::{Copy};
 
     - Row-Major Vector Convention: Not talking about memory layout here. Meaning, my matrices are designed from the point of view of being multiplied by ROW vectors.
     - Projection and View matrices currently assume Left-Handedness, as this is what is ultimately assumed by the Rasterizer stage of DirectX 11.
+    -- Type of Left-Handedness used: +X (right), +Y (Up), +Z (Into Screen - Away from Viewer)
 */
 
 #[derive(Default, Clone, Copy)]
@@ -198,6 +199,9 @@ impl Mat4
         }
     }
 
+    /*
+        The rotation matrices are designed to be used with my left-handed coordinate system.
+    */
     pub fn rotate_x(rad: f32) -> Mat4 {
         Mat4 {
             matrix: [

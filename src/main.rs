@@ -427,6 +427,8 @@ fn main() {
         let mut should_quit = false;
         let mut current_message = MSG::default();
 
+        let mut the_rot = 0.0f32;
+
         while !should_quit {
             // PROCESS INPUT
             // PeekMessage will retrieve messages associated with the main window and the thread.
@@ -504,8 +506,12 @@ fn main() {
 
                 let view_matrix = camera.view_matrix();
 
-                // MY MATH LIBRARY CURRENTLY USES ROW-MAJOR CONVENTION, THIS MEANS THAT YOUR TYPICAL P * V * TRSv order becomes vSRT * VIEW * PROJECTION
-                (*rofl).worldViewProjection = view_matrix.mul(&beagle_math::Mat4::projection((45.0f32).to_radians(), 800.0, 600.0, 0.1, 100.0));
+                the_rot += 0.005;
+
+                let model_matrix = beagle_math::Mat4::rotate_y(the_rot);
+
+                // MY MATH LIBRARY CURRENTLY USES ROW-MAJOR CONVENTION, THIS MEANS THAT YOUR TYPICAL P * V * TRSv order becomes v(SRT) * VIEW * PROJECTION
+                (*rofl).worldViewProjection = model_matrix.mul(&view_matrix.mul(&beagle_math::Mat4::projection((45.0f32).to_radians(), 800.0, 600.0, 0.1, 100.0)));
                 
                 // My matrices are all designed for being multipled with a ROW vector.
                 // Also, I store my matrices in row-major order in memory.
