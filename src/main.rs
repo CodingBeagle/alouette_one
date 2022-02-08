@@ -60,7 +60,7 @@ impl Camera {
     fn forward(&self) -> beagle_math::Vector3 {
         let mut lol = self.quat_orient.to_matrix();
 
-        lol.tranpose();
+        // lol.tranpose();
 
         let mut damn = lol.mul_row(&beagle_math::Vector4::new(0.0, 0.0, 1.0, 0.0));
         damn = damn.normalize();
@@ -479,11 +479,11 @@ fn main() {
                 }
 
                 if window_helper.is_key_pressed(window::Key::LeftArrow) {
-                    camera.yaw_in_radians += 0.02;
+                    camera.yaw_in_radians -= 0.02;
                 }
 
                 if window_helper.is_key_pressed(window::Key::RightArrow) {
-                    camera.yaw_in_radians -= 0.02;
+                    camera.yaw_in_radians += 0.02;
                 }
 
                 window_helper.update();
@@ -506,7 +506,7 @@ fn main() {
 
                 let view_matrix = camera.view_matrix();
 
-                the_rot += 0.005;
+                //the_rot += 0.005;
 
                 let model_matrix = beagle_math::Mat4::rotate_y(the_rot);
 

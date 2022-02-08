@@ -47,6 +47,12 @@ Useful sets of linear transformations commonly used:
 - Reflection
 - Shearing
 
+These **linear transformations** can all be represented by a 3x3 matrix.
+
+**Affine transformations**, which are transformations that include translation, are represented by 4x4 matrices.
+
+Typically, in 4x4 matrices used for graphics programming, the 3x3 part of the matrice will be the linear transformation (such as a rotation, scaling, etc...), whilst the last row, the fourth row (if you represent vectors as rows), will be the *translation*.
+
 **Key Idea** about matrices is this:
 
 All a matrix really represents is a **coordinate space transformation**, taking a vector being expressed in (x, y, z) coordinates, and changing it into the same vector, just expressed in a different coordinate space.
