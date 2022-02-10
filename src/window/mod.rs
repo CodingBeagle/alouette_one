@@ -20,6 +20,7 @@ pub enum Key {
     S,
     E,
     Q,
+    Space,
     Escape
 }
 
@@ -55,6 +56,9 @@ pub fn map_to_key(virtual_key_code: i32) -> Key {
         },
         0x51 => {
             Key::Q
+        },
+        0x20 => {
+            Key::Space
         },
         0x1B => {
             Key::Escape

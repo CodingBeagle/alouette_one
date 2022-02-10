@@ -458,12 +458,21 @@ fn main() {
                     camera.position.y -= 0.5;
                 }
 
+                if window_helper.is_key_pressed(window::Key::D) {
+                    camera.position.x += 0.5;
+                }
+
+                if window_helper.is_key_pressed(window::Key::A) {
+                    camera.position.x -= 0.5;
+                }
+
                 if window_helper.is_key_pressed(window::Key::S) {
                     camera.position = camera.position.add(&camera.forward().mul(-1.0));
                 }
 
                 if window_helper.is_key_pressed(window::Key::W) {
-                    camera.position = camera.position.add(&camera.forward());
+                    //camera.position = camera.position.add(&camera.forward());
+                    camera.position.z += 0.5;
                 }
 
                 if window_helper.is_key_pressed(window::Key::Escape) {
@@ -506,7 +515,9 @@ fn main() {
 
                 let view_matrix = camera.view_matrix();
 
-                //the_rot += 0.005;
+                if window_helper.is_key_pressed(window::Key::Space) {
+                    the_rot += 0.005;
+                }
 
                 let model_matrix = beagle_math::Mat4::rotate_y(the_rot);
 

@@ -200,8 +200,27 @@ impl Mat4
     }
 
     /*
-        The rotation matrices are designed to be used with my left-handed coordinate system.
-    */
+        My Rotation X matrix is designed so that looking down the X-axis from the positive end (towards the negative), a positive rotation (positive angle in radians)
+        Should result in a clockwise rotation.
+
+        This is simply conventions you have to choose, and then stick with. 
+
+        For matrices that represent linear transformations (such as rotation, in this case) we can look at the first three rows as basic vectors x, y, and z (from towards bottom), which represents a coordinate system.
+        Multiplying a vector to this matrix results in the coordinates of that vector being translated / transformed / mapped, into the other vector space.
+
+        Thus, in the case of rotation about the X axis, the Y BASIS vector (0, rad.cos(), rad.sin()) will tend from 1 to -1 when going from 0 degrees radians to pi (180 degrees) on the Y axis, and will then
+        tend towards 1 again, whilst its Z component will tend from 0 to 1 from 0 to pi/2 radians (90 degrees), and then from 1 to 0 from pi/2 to pi radians (180 degrees), and then the opposite for angles > 180.
+        
+        This will give us the result of a positive rotation being clockwise when looking down the positive end, towards the negative.
+
+        If you wanted the opposite, so counter-clockwise, you'd simply do a transposed version of the below matrix, so simply switching the - sign of the rad.sin() elements on each side of the matrix's
+        diagonal.
+
+        In general, a transpose of a transform can be seen as the opposite equivalent transform.
+        */
+
+        // TODO: Understand how matrix multiplication, in this case a row vector by a 4x4 matrix, exactly represents a linear transform.
+        //   Why does the dot product of the row vector with each column end up representing a transformed vector?
     pub fn rotate_x(rad: f32) -> Mat4 {
         Mat4 {
             matrix: [
