@@ -60,8 +60,6 @@ impl Camera {
     fn forward(&self) -> beagle_math::Vector3 {
         let mut lol = self.quat_orient.to_matrix();
 
-        // lol.tranpose();
-
         let mut damn = lol.mul_row(&beagle_math::Vector4::new(0.0, 0.0, 1.0, 0.0));
         damn = damn.normalize();
 
@@ -471,8 +469,7 @@ fn main() {
                 }
 
                 if window_helper.is_key_pressed(window::Key::W) {
-                    //camera.position = camera.position.add(&camera.forward());
-                    camera.position.z += 0.5;
+                    camera.position = camera.position.add(&camera.forward());
                 }
 
                 if window_helper.is_key_pressed(window::Key::Escape) {

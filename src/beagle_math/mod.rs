@@ -135,6 +135,14 @@ impl Vector4 {
     }
 }
 
+/*
+    4x4 Matrices are used to represent both linear and affine transformations.
+
+    I'm used row vectors (meaning, I'm representing vectors as a matrix with a single row), and thus the 3 first rows can be seen as linear transformations (rotation, scale, shearing, etc...),
+    whilst the last row is used for translation.
+    
+    In general, matrices represent a linear and/or affine transformation. In the case of the linear transformation, multiplying a vector by a matrix creates a linear displacement.
+*/
 pub struct Mat4
 {
     matrix: [f32; 16]
@@ -391,10 +399,10 @@ impl Quaternion {
         let m44 = 1.0;
 
         let mut m = Mat4::new([
-            m11, m12, m13, m14,
-            m21, m22, m23, m24,
-            m31, m32, m33, m34,
-            m41, m42, m43, m44
+            m11, m21, m31, m41,
+            m12, m22, m32, m42,
+            m13, m23, m33, m43,
+            m14, m24, m34, m44
         ]);
 
         m
