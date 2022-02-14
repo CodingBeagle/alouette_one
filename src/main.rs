@@ -51,7 +51,19 @@ impl Camera {
         self.quat_orient = res;
 
         // View Matrix: Translate * Rotate
-        let rot_matrix = self.quat_orient.to_matrix();
+        let mut rot_matrix = self.quat_orient.to_matrix();
+        
+        /*
+            I transpose the orientation quaternion.
+            The reason I do this currently is because the "to_matrix" function generates a matrix from a quaternion
+            In a fashion that does not totally line up with a basis vector that follows my coordinate handedness (+x goes right, +y goes up).
+            The vector of the orienation matrix has the signs of x and y flipped.
+
+            The underlying issue here is the matrix I generate from the quaternion. If I want a totally clean solution, I'd
+            find a way to generate a quaternion-to-matrix conversion that aligns with my own coordinate handedness.
+        */
+        rot_matrix.tranpose();
+
         let translate_matrix = beagle_math::Mat4::translate(&beagle_math::Vector3::new(self.position.x * -1.0, self.position.y * -1.0, self.position.z * -1.0));
 
         translate_matrix.mul(&rot_matrix)
@@ -60,10 +72,7 @@ impl Camera {
     fn forward(&self) -> beagle_math::Vector3 {
         let mut lol = self.quat_orient.to_matrix();
 
-        let mut damn = lol.mul_row(&beagle_math::Vector4::new(0.0, 0.0, 1.0, 0.0));
-        damn = damn.normalize();
-
-        beagle_math::Vector3::new(damn.x, damn.y, damn.z)
+        beagle_math::Vector3::new(lol.get(0, 2), lol.get(1, 2), lol.get(2, 2))
     }
 }
 
@@ -485,11 +494,11 @@ fn main() {
                 }
 
                 if window_helper.is_key_pressed(window::Key::LeftArrow) {
-                    camera.yaw_in_radians -= 0.02;
+                    camera.yaw_in_radians += 0.02;
                 }
 
                 if window_helper.is_key_pressed(window::Key::RightArrow) {
-                    camera.yaw_in_radians += 0.02;
+                    camera.yaw_in_radians -= 0.02;
                 }
 
                 window_helper.update();
@@ -518,6 +527,7 @@ fn main() {
 
                 let model_matrix = beagle_math::Mat4::rotate_y(the_rot);
 
+                // OBJECT -> WORLD -> VIEW -> PROJECTION
                 // MY MATH LIBRARY CURRENTLY USES ROW-MAJOR CONVENTION, THIS MEANS THAT YOUR TYPICAL P * V * TRSv order becomes v(SRT) * VIEW * PROJECTION
                 (*rofl).worldViewProjection = model_matrix.mul(&view_matrix.mul(&beagle_math::Mat4::projection((45.0f32).to_radians(), 800.0, 600.0, 0.1, 100.0)));
                 
