@@ -24,12 +24,9 @@ mod window;
 
 #[derive(Default)]
 struct Camera {
-    forward_vec: beagle_math::Vector3,
     position: beagle_math::Vector3,
-    orientation: beagle_math::Vector3,
     pitch_in_radians: f32,
     yaw_in_radians: f32,
-    quat_orient: beagle_math::Quaternion,
     current_ont: beagle_math::Mat4
 }
 
