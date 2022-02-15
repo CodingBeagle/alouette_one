@@ -87,6 +87,15 @@ impl Vector3 {
     pub fn mul(&self, scalar: f32) -> Vector3 {
         Vector3::new(self.x * scalar, self.y * scalar, self.z * scalar)
     }
+
+    pub fn length(&self) -> f32 {
+        ((self.x * self.x) + (self.y * self.y) + (self.z * self.z)).sqrt()
+    }
+
+    pub fn normalized(&self) -> Vector3 {
+        let magnitude = self.length();
+        Vector3::new(self.x / magnitude, self.y / magnitude, self.z / magnitude)
+    }
 }
 
 #[derive(Default, Clone, Copy)]
@@ -146,6 +155,10 @@ impl Vector4 {
 pub struct Mat4
 {
     pub matrix: [f32; 16]
+}
+
+impl Default for Mat4 {
+    fn default() -> Self { Mat4::identity() }
 }
 
 impl fmt::Debug for Mat4 {
@@ -274,6 +287,10 @@ impl Mat4
         self.matrix = self.get_column_major_value()
     }
 
+    pub fn get_transposed(&self) -> Mat4 {
+        Mat4 { matrix: self.get_column_major_value() }
+    }
+
     // For this projection matrix, I use what is sometimes referred to as the Hor+ scaling method for Field of View (https://en.wikipedia.org/wiki/Field_of_view_in_video_games).
     // Basically, the vertical FoV is fixed, while the horizontal FoV scales with the aspect ratio.
     pub fn projection(fov: f32, width: f32, height: f32, near: f32, far: f32) -> Mat4 {
@@ -329,10 +346,11 @@ impl Mat4
     }
 }
 
+// TODO: Default Quaternion should actually return a UNIT QUATERNION / IDENTITY QUATERNION
 #[derive(Default)]
 pub struct Quaternion {
-    w: f32,
-    v: Vector3
+    pub w: f32,
+    pub v: Vector3
 }
 
 impl Quaternion {
@@ -376,7 +394,7 @@ impl Quaternion {
     }
 
     pub fn to_matrix(&self) -> Mat4 {
-        let q = Vector4::new(self.v.x, self.v.y, self.v.z, self.w).normalize();
+        let q = Vector4::new(self.v.x, self.v.y, self.v.z, self.w);
 
         let m11 = 1.0 - 2.0 * q.y.powf(2.0) - 2.0 * q.z.powf(2.0);
         let m12 = 2.0 * q.x * q.y + 2.0 * q.z * q.w;
@@ -528,6 +546,18 @@ mod tests {
 
         // Assert
         assert!( matrix_in_column_major.iter().eq(expected_matrix.iter()) );
+    }
+
+    #[test]
+    fn should_calculate_vec3_magnitude_correctly() {
+        let my_vector = Vector3::new(3.0, 1.0, 8.0);
+        let magnitude = my_vector.length();
+
+        println!("magnitude: {}", magnitude);
+
+        let normalized = my_vector.normalized();
+
+        println!("Normalized: {:?}", normalized);
     }
 
     #[test]

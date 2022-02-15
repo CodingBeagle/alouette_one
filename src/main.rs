@@ -29,7 +29,8 @@ struct Camera {
     orientation: beagle_math::Vector3,
     pitch_in_radians: f32,
     yaw_in_radians: f32,
-    quat_orient: beagle_math::Quaternion
+    quat_orient: beagle_math::Quaternion,
+    current_ont: beagle_math::Mat4
 }
 
 impl Camera {
@@ -43,36 +44,44 @@ impl Camera {
         let mut pitch_rot = beagle_math::Quaternion::default();
         pitch_rot.set_rotation(right_vector, self.pitch_in_radians);
 
-        // TODO: Read up on the whole... order of multiplication for my matrices and quaternions...
-        // Try to understand what's up...
-        // Right now, my camera rotation is in order of: pitch_rot * yaw_rot
-        let res = yaw_rot.cross(&pitch_rot);
+        let res = pitch_rot.cross(&yaw_rot);
 
-        self.quat_orient = res;
-
-        // View Matrix: Translate * Rotate
-        let mut rot_matrix = self.quat_orient.to_matrix();
-        
-        /*
-            I transpose the orientation quaternion.
-            The reason I do this currently is because the "to_matrix" function generates a matrix from a quaternion
-            In a fashion that does not totally line up with a basis vector that follows my coordinate handedness (+x goes right, +y goes up).
-            The vector of the orienation matrix has the signs of x and y flipped.
-
-            The underlying issue here is the matrix I generate from the quaternion. If I want a totally clean solution, I'd
-            find a way to generate a quaternion-to-matrix conversion that aligns with my own coordinate handedness.
-        */
-        rot_matrix.tranpose();
+        self.current_ont = res.to_matrix();
 
         let translate_matrix = beagle_math::Mat4::translate(&beagle_math::Vector3::new(self.position.x * -1.0, self.position.y * -1.0, self.position.z * -1.0));
 
-        translate_matrix.mul(&rot_matrix)
+        /*
+        !IMPORTANT!
+        I transpose the orientation matrix for the view matrix. 
+        This is because for the view matrix, I do the opposite transforms of what I want to happen.
+        I.E, if I want to translate with +5 into the Z axis, the view matrix creates this illusion by transforming all vertices
+        -5 down the Z axis (so towards the camera).
+        Likewise, if I want a positive yaw rotation to be clockwise (going right) relative to the viewer, what I really do is take a rotation matrix that represents that orientation,
+        and then do the opposite to all vertices.
+        Thus, my view matrix represents the opposite of the direction I want my camera to be in.
+        */
+        translate_matrix.mul(&res.to_matrix().get_transposed())
     }
 
-    fn forward(&self) -> beagle_math::Vector3 {
-        let mut lol = self.quat_orient.to_matrix();
+    fn forward(&self) -> beagle_math::Vector3 {  
+        let normed = beagle_math::Vector3::new(self.current_ont.get(0, 2), self.current_ont.get(1, 2), self.current_ont.get(2, 2)).normalized();
+        normed
+    }
 
-        beagle_math::Vector3::new(lol.get(0, 2), lol.get(1, 2), lol.get(2, 2))
+    fn right(&self) -> beagle_math::Vector3 {
+        let right = beagle_math::Vector3::new(
+            self.current_ont.get(0, 0),
+            self.current_ont.get(1, 0),
+            self.current_ont.get(2, 0)).normalized();
+
+        right
+    }
+
+    fn up(&self) -> beagle_math::Vector3 {
+        beagle_math::Vector3::new(
+            self.current_ont.get(0, 1),
+            self.current_ont.get(1, 1),
+            self.current_ont.get(2, 1)).normalized()
     }
 }
 
@@ -466,11 +475,11 @@ fn main() {
                 }
 
                 if window_helper.is_key_pressed(window::Key::D) {
-                    camera.position.x += 0.5;
+                    camera.position = camera.position.add(&camera.right());
                 }
 
                 if window_helper.is_key_pressed(window::Key::A) {
-                    camera.position.x -= 0.5;
+                    camera.position = camera.position.add(&camera.right().mul(-1.0));
                 }
 
                 if window_helper.is_key_pressed(window::Key::S) {
@@ -494,11 +503,11 @@ fn main() {
                 }
 
                 if window_helper.is_key_pressed(window::Key::LeftArrow) {
-                    camera.yaw_in_radians += 0.02;
+                    camera.yaw_in_radians -= 0.02;
                 }
 
                 if window_helper.is_key_pressed(window::Key::RightArrow) {
-                    camera.yaw_in_radians -= 0.02;
+                    camera.yaw_in_radians += 0.02;
                 }
 
                 window_helper.update();
