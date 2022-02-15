@@ -535,6 +535,8 @@ fn main() {
 
                 // OBJECT -> WORLD -> VIEW -> PROJECTION
                 // MY MATH LIBRARY CURRENTLY USES ROW-MAJOR CONVENTION, THIS MEANS THAT YOUR TYPICAL P * V * TRSv order becomes v(SRT) * VIEW * PROJECTION
+                // THIS MEANS THAT INSTEAD OF READING RIGHT TO LEFT IN ORDER TO UNDERSTAND THE ORDER OF TRANSFORMS A VERTICE GOES THROUGH
+                // I HAVE TO READ FROM LEFT TO RIGHT.
                 (*rofl).worldViewProjection = model_matrix.mul(&view_matrix.mul(&beagle_math::Mat4::projection((45.0f32).to_radians(), 800.0, 600.0, 0.1, 100.0)));
                 
                 // My matrices are all designed for being multipled with a ROW vector.
