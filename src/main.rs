@@ -124,7 +124,7 @@ fn main() {
             PWSTR(window_class_name.as_mut_ptr()),
             PWSTR(window_title.as_mut_ptr()),
             WS_OVERLAPPEDWINDOW | WS_VISIBLE,
-            0, 0, 800, 600,
+            CW_USEDEFAULT, CW_USEDEFAULT, 800, 600,
             None,
             None,
             h_instance,
@@ -491,21 +491,8 @@ fn main() {
                     should_quit = true;
                 }
 
-                if window_helper.is_key_pressed(window::Key::UpArrow) {
-                    camera.pitch_in_radians += 0.02;
-                }
-
-                if window_helper.is_key_pressed(window::Key::DownArrow) {
-                    camera.pitch_in_radians -= 0.02;
-                }
-
-                if window_helper.is_key_pressed(window::Key::LeftArrow) {
-                    camera.yaw_in_radians -= 0.02;
-                }
-
-                if window_helper.is_key_pressed(window::Key::RightArrow) {
-                    camera.yaw_in_radians += 0.02;
-                }
+                camera.pitch_in_radians -= (window_helper.mouse_move_y as f32) * 0.005;
+                camera.yaw_in_radians += (window_helper.mouse_move_x as f32) * 0.005;
 
                 window_helper.update();
 
