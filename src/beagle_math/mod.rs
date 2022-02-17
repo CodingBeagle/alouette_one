@@ -58,6 +58,10 @@ impl fmt::Debug for Vector3 {
 }
 
 impl Vector3 {
+    pub fn zero() -> Vector3 {
+        Vector3::new(0.0, 0.0, 0.0)
+    }
+
     pub fn new(x: f32, y: f32, z: f32) -> Vector3 {
         Vector3 {
             x,
@@ -218,6 +222,10 @@ impl Mat4
                 0.0    , 0.0    , 0.0    , 1.0
             ]
         }
+    }
+
+    pub fn uniform_scale(scale: f32) -> Mat4 {
+        Mat4::scale(&Vector3::new(scale, scale, scale))
     }
 
     /*

@@ -255,7 +255,7 @@ fn main() {
         // TODO: Exercise - Enumerate through the available outputs (monitors) for an adapter. Use IDXGIAdapter::EnumOutputs.
         // TODO: Exercise - Each output has a lit of supported display modes. For each of them, list width, height, refresh rate, pixel format, etc...
 
-        let path_to_mesh = current_executable_path.parent().unwrap().join("resources\\colored_plane\\colored_plane.gltf");
+        let path_to_mesh = current_executable_path.parent().unwrap().join("resources\\terrain\\terrain.gltf");
 
         let gltf = gltf::GLTF::new(path_to_mesh);
 
@@ -372,14 +372,14 @@ fn main() {
 
         // A vertex shader must always be active for the pipeline to execute
         dx_device_context.VSSetShader(vertex_shader, ptr::null(), 0);
-
         dx_device_context.PSSetShader(pixel_shader, ptr::null(), 0);
 
         // Create Rasterizer state
         // TODO: Definitely read more up on this
         // https://docs.microsoft.com/en-us/windows/win32/api/d3d11/ns-d3d11-d3d11_rasterizer_desc
+        // TODO: Make it possible to switch between wireframe and solid mode.
         let mut rasterizer_description = D3D11_RASTERIZER_DESC::default();
-        rasterizer_description.FillMode = D3D11_FILL_SOLID;
+        rasterizer_description.FillMode = D3D11_FILL_SOLID | D3D11_FILL_WIREFRAME;
         rasterizer_description.CullMode = D3D11_CULL_NONE;
         rasterizer_description.FrontCounterClockwise = BOOL(0);
         rasterizer_description.ScissorEnable = BOOL(0);
@@ -493,6 +493,12 @@ fn main() {
                     camera.position = camera.position.add(&camera.forward());
                 }
 
+                if window_helper.is_key_pressed(window::Key::Space) {
+                    camera.position = beagle_math::Vector3::zero();
+                    camera.yaw_in_radians = 0.0;
+                    camera.pitch_in_radians = 0.0;
+                }
+
                 if window_helper.is_key_pressed(window::Key::Escape) {
                     should_quit = true;
                 }
@@ -524,13 +530,13 @@ fn main() {
                     the_rot += 0.005;
                 }
 
-                let model_matrix = beagle_math::Mat4::rotate_y(the_rot);
+                let model_matrix = beagle_math::Mat4::uniform_scale(400.0).mul(&beagle_math::Mat4::rotate_y(the_rot));
 
                 // OBJECT -> WORLD -> VIEW -> PROJECTION
                 // MY MATH LIBRARY CURRENTLY USES ROW-MAJOR CONVENTION, THIS MEANS THAT YOUR TYPICAL P * V * TRSv order becomes v(SRT) * VIEW * PROJECTION
                 // THIS MEANS THAT INSTEAD OF READING RIGHT TO LEFT IN ORDER TO UNDERSTAND THE ORDER OF TRANSFORMS A VERTICE GOES THROUGH
                 // I HAVE TO READ FROM LEFT TO RIGHT.
-                (*rofl).worldViewProjection = model_matrix.mul(&view_matrix.mul(&beagle_math::Mat4::projection((45.0f32).to_radians(), 800.0, 600.0, 0.1, 100.0)));
+                (*rofl).worldViewProjection = model_matrix.mul(&view_matrix.mul(&beagle_math::Mat4::projection((45.0f32).to_radians(), 800.0, 600.0, 0.1, 5000.0)));
                 
                 // My matrices are all designed for being multipled with a ROW vector.
                 // Also, I store my matrices in row-major order in memory.
@@ -552,7 +558,7 @@ fn main() {
                     0);
 
                 // TODO: Read indices count from actual GLTF file!!
-                dx_device_context.DrawIndexed(24, 0, 0);
+                dx_device_context.DrawIndexed(primitive.vertex_indices.element_count, 0, 0);
 
                 if swap_chain.Present(1, 0).is_err() {
                     panic!("Failed to present!");

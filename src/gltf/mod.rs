@@ -5,6 +5,14 @@ use std::cell::{RefCell, Ref};
 
 extern crate base64;
 
+// TODO:
+/*
+    Perhaps I should split up the actual model that is read from JSON and the 
+    logic that uses it to create importable data into two separate things.
+
+    Combining model and logic to interpret and import it creates issues with mutating the structure itself
+    during load time, that might become cleaner code by separating those two "concerns".
+*/
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct GLTF {
@@ -68,6 +76,7 @@ impl GLTF {
         buffer_data.copy_from_slice(&buffer.get_data()[buffer_view.byte_offset as usize..(buffer_view.byte_offset + buffer_view.byte_length) as usize]);
 
         LoadedBuffer {
+            element_count: accessor.count,
             buffer_data,
             buffer_component,
             buffer_component_type
@@ -205,6 +214,7 @@ pub struct LoadedPrimitive {
 
 #[derive(Debug)]
 pub struct LoadedBuffer {
+    pub element_count: u32,
     pub buffer_data: Vec<u8>,
     pub buffer_component: BufferComponent,
     pub buffer_component_type: BufferComponentType
