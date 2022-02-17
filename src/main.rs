@@ -151,6 +151,9 @@ fn main() {
         window_helper.hwnd = main_window;
         SetWindowLongPtrA(main_window, GWLP_USERDATA, &window_helper as *const _ as isize);
 
+        // Hide the cursor
+        ShowCursor(false);
+
         // Create the swap chain.
 
         // In order to create a swap chain, we need to call CreateSwapChain on a IDXGIFactory.
