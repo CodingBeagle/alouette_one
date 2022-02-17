@@ -14,6 +14,8 @@ This repository contains a very much work-in-progress game that I am making "fro
 - Writing my own math library geared towards game development, including a library for linear algebra useful for 3D rendering and game programing
 - etc... I think you get the idea ;)
 
+![flying demo](flying.gif)
+
 ## The Code
 
 If you've come here trying to deduce best-practice design patterns and solutions for Rust and game engine programming in general, you should turn around immediately. Turn around, and don't look back. Please.
@@ -27,7 +29,3 @@ This comes from what Steve McConnell refers to as the **wicked problem** in *Cod
 That is, you have to solve a problem once, in order to even understand it, so that you can solve it better a second time around. Said in another way: **It's a waste of time to attempt a clean design / clean code before you even know what it is you're trying to solve.**
 
 Being faced with a new problem, such as opening a window using the Windows API, creating a DirectX context, or whatever else concrete task you can come up with, is essentially a giant set of unknown variables that you have to solve for. If you don't know the unknowns, how do you ever expect to create a clean design that will encompass them? The fastest way to discover as many unknowns as possible - in order to reach a clean design *later* - is to get going, and produce code that aims at solving it.
-
-## Check it!
-
-![flying demo](flying.gif)
