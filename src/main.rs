@@ -116,6 +116,12 @@ fn main() {
         }
 
         // Create window
+
+        // Get the width and height of the client area of a full-screen window on the primary monitor, in pixels.
+        // I will use this to center the game window in the middle of the primary display.
+        let desktop_width_in_pixels = GetSystemMetrics(SM_CXFULLSCREEN);
+        let desktop_height_in_pixels = GetSystemMetrics(SM_CYFULLSCREEN);
+
         // If successful, the function will return a handle  to the new window.
         // If the function fails, the return value will be zero (null).
         let mut window_title : Vec<u16> = OsStr::new("Alouette One").encode_wide().chain( once(0) ).collect();
@@ -124,7 +130,7 @@ fn main() {
             PWSTR(window_class_name.as_mut_ptr()),
             PWSTR(window_title.as_mut_ptr()),
             WS_OVERLAPPEDWINDOW | WS_VISIBLE,
-            CW_USEDEFAULT, CW_USEDEFAULT, 800, 600,
+            (desktop_width_in_pixels / 2) - 400, (desktop_height_in_pixels / 2) - 300, 800, 600,
             None,
             None,
             h_instance,
