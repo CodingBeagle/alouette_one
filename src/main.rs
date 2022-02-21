@@ -26,14 +26,21 @@ mod window;
 struct Camera {
     position: beagle_math::Vector3,
     pitch_in_radians: f32,
+    prev_pitch_in_radians: f32,
     yaw_in_radians: f32,
-    current_ont: beagle_math::Mat4
+    prev_yaw_in_radians: f32,
+    current_ont: beagle_math::Mat4,
+    previous_ont: beagle_math::Mat4,
+    world_rotation_matrix: beagle_math::Mat4,
+    prev_pos_x: f32,
+    prev_pos_y: f32,
+    prev_pos_z: f32
 }
 
 impl Camera {
     fn view_matrix(&mut self) -> beagle_math::Mat4 {
-        let up_vector = beagle_math::Vector3::new(0.0, 1.0, 0.0);
-        let right_vector = beagle_math::Vector3::new(1.0, 0.0, 0.0);
+        let mut up_vector = beagle_math::Vector3::new(0.0, 1.0, 0.0);
+        let mut right_vector = beagle_math::Vector3::new(1.0, 0.0, 0.0);
 
         let mut yaw_rot = beagle_math::Quaternion::default();
         yaw_rot.set_rotation(up_vector, self.yaw_in_radians);
@@ -47,6 +54,8 @@ impl Camera {
 
         let translate_matrix = beagle_math::Mat4::translate(&beagle_math::Vector3::new(self.position.x * -1.0, self.position.y * -1.0, self.position.z * -1.0));
 
+        let mut view_orientation = res.to_matrix().get_transposed();
+
         /*
         !IMPORTANT!
         I transpose the orientation matrix for the view matrix. 
@@ -57,7 +66,67 @@ impl Camera {
         and then do the opposite to all vertices.
         Thus, my view matrix represents the opposite of the direction I want my camera to be in.
         */
-        translate_matrix.mul(&res.to_matrix().get_transposed())
+        translate_matrix.mul(&view_orientation)
+    }
+
+    fn view_matrix_spaceship(&mut self) -> beagle_math::Mat4 {
+        let diff_pitch = self.pitch_in_radians - self.prev_pitch_in_radians;
+        let diff_yaw = self.yaw_in_radians - self.prev_yaw_in_radians;
+
+        let diff_pos_x = self.position.x - self.prev_pos_x;
+        let diff_pos_y = self.position.y - self.prev_pos_y;
+        let diff_pos_z = self.position.z - self.prev_pos_z;
+
+        let mut up_vector = beagle_math::Vector3::new(0.0, 1.0, 0.0);
+        let mut right_vector = beagle_math::Vector3::new(1.0, 0.0, 0.0);
+
+        // WORLD ORIENTATION
+        let mut yaw_rot = beagle_math::Quaternion::default();
+        yaw_rot.set_rotation(up_vector, self.yaw_in_radians);
+
+        let mut pitch_rot = beagle_math::Quaternion::default();
+        pitch_rot.set_rotation(right_vector, self.pitch_in_radians);
+
+        let res = pitch_rot.cross(&yaw_rot);
+
+        self.current_ont = res.to_matrix();
+
+        // CAMERA ORIENTATION
+        let mut camera_yaw_rot = beagle_math::Quaternion::default();
+        camera_yaw_rot.set_rotation(up_vector, diff_yaw);
+
+        let mut camera_pitch_rot = beagle_math::Quaternion::default();
+        camera_pitch_rot.set_rotation(right_vector, diff_pitch);
+
+        let camera_rot_res = camera_pitch_rot.cross(&camera_yaw_rot);
+
+        let translate_matrix = beagle_math::Mat4::translate(&beagle_math::Vector3::new(self.position.x * -1.0, self.position.y * -1.0, self.position.z * -1.0));
+
+        let mut view_orientation = res.to_matrix().get_transposed();
+
+        let world_reorientation_matrix = translate_matrix.mul(&view_orientation);
+
+        let temp_new_orient_matrix = beagle_math::Mat4::translate(
+            &beagle_math::Vector3::new(diff_pos_x * -1.0, diff_pos_y * -1.0, diff_pos_z * -1.0)).mul(&camera_rot_res.to_matrix().get_transposed());
+
+        self.prev_pitch_in_radians = self.pitch_in_radians;
+        self.prev_yaw_in_radians = self.yaw_in_radians;
+
+        self.prev_pos_x = self.position.x;
+        self.prev_pos_y = self.position.y;
+        self.prev_pos_z = self.position.z;
+
+        /*
+        !IMPORTANT!
+        I transpose the orientation matrix for the view matrix. 
+        This is because for the view matrix, I do the opposite transforms of what I want to happen.
+        I.E, if I want to translate with +5 into the Z axis, the view matrix creates this illusion by transforming all vertices
+        -5 down the Z axis (so towards the camera).
+        Likewise, if I want a positive yaw rotation to be clockwise (going right) relative to the viewer, what I really do is take a rotation matrix that represents that orientation,
+        and then do the opposite to all vertices.
+        Thus, my view matrix represents the opposite of the direction I want my camera to be in.
+        */
+        world_reorientation_matrix.mul(&temp_new_orient_matrix)
     }
 
     fn forward(&self) -> beagle_math::Vector3 {  
@@ -509,6 +578,8 @@ fn main() {
                 camera.pitch_in_radians -= (window_helper.mouse_move_y as f32) * 0.005;
                 camera.yaw_in_radians += (window_helper.mouse_move_x as f32) * 0.005;
 
+
+
                 window_helper.update();
 
                 // RENDER
@@ -527,7 +598,7 @@ fn main() {
 
                 let rofl = mapped_resource.unwrap().pData as *mut VertexConstantBuffer;
 
-                let view_matrix = camera.view_matrix();
+                let view_matrix = camera.view_matrix_spaceship();
 
                 if window_helper.is_key_pressed(window::Key::Space) {
                     the_rot += 0.005;

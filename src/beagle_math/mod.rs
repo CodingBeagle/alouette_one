@@ -39,6 +39,7 @@ impl Vector2 {
     }
 }
 
+// TODO: ADD SUBTRACT METHOD
 #[derive(Default, Clone, Copy)]
 pub struct Vector3
 {
@@ -156,6 +157,8 @@ impl Vector4 {
     
     In general, matrices represent a linear and/or affine transformation. In the case of the linear transformation, multiplying a vector by a matrix creates a linear displacement.
 */
+
+// TODO: Implement copy trait!
 pub struct Mat4
 {
     pub matrix: [f32; 16]
