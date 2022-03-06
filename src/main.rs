@@ -34,7 +34,14 @@ struct Camera {
     world_rotation_matrix: beagle_math::Mat4,
     prev_pos_x: f32,
     prev_pos_y: f32,
-    prev_pos_z: f32
+    prev_pos_z: f32,
+    world_ori: beagle_math::Mat4,
+
+    previous_view: beagle_math::Mat4,
+
+    previous_position: beagle_math::Vector3,
+    previous_pitch: f32,
+    previous_yaw: f32
 }
 
 impl Camera {
@@ -79,6 +86,7 @@ impl Camera {
 
         let mut up_vector = beagle_math::Vector3::new(0.0, 1.0, 0.0);
         let mut right_vector = beagle_math::Vector3::new(1.0, 0.0, 0.0);
+        let mut forward_vector = beagle_math::Vector3::new(0.0, 0.0, 1.0);
 
         // WORLD ORIENTATION
         let mut yaw_rot = beagle_math::Quaternion::default();
@@ -104,11 +112,6 @@ impl Camera {
 
         let mut view_orientation = res.to_matrix().get_transposed();
 
-        let world_reorientation_matrix = translate_matrix.mul(&view_orientation);
-
-        let temp_new_orient_matrix = beagle_math::Mat4::translate(
-            &beagle_math::Vector3::new(diff_pos_x * -1.0, diff_pos_y * -1.0, diff_pos_z * -1.0)).mul(&camera_rot_res.to_matrix().get_transposed());
-
         self.prev_pitch_in_radians = self.pitch_in_radians;
         self.prev_yaw_in_radians = self.yaw_in_radians;
 
@@ -116,17 +119,82 @@ impl Camera {
         self.prev_pos_y = self.position.y;
         self.prev_pos_z = self.position.z;
 
+        let ze_translate = beagle_math::Vector3::new(self.position.x * -1.0, self.position.y * -1.0, self.position.z * -1.0);
+
+        let world_translate = beagle_math::Mat4::translate(&beagle_math::Vector3::new(self.position.x * -1.0, self.position.y * -1.0, self.position.z * -1.0));
+        let world_rotate = pitch_rot.to_matrix().get_transposed();
+
+        let world_togetherness = world_translate.mul(&world_rotate);
+
+        let parent_translate = beagle_math::Mat4::identity();
+        let global_parent_rotate = yaw_rot.to_matrix().get_transposed();
+
+        let parent_matrix = parent_translate.mul(&global_parent_rotate);
+
+        let rofl = beagle_math::Mat4::parent_to_local(&ze_translate, &world_rotate);
+
+        rofl
+    }
+
+    fn awsum(&mut self) -> beagle_math::Mat4 {
+        let pitch_matrix = beagle_math::Mat4::rotate_x(self.pitch_in_radians);
+        let mut yaw_matrix = beagle_math::Mat4::rotate_y(self.yaw_in_radians);
+
+        let camera_position = self.position;
+
+        let translate_matrix = beagle_math::Mat4::translate(&camera_position.mul(-1.0));
+
         /*
-        !IMPORTANT!
-        I transpose the orientation matrix for the view matrix. 
-        This is because for the view matrix, I do the opposite transforms of what I want to happen.
-        I.E, if I want to translate with +5 into the Z axis, the view matrix creates this illusion by transforming all vertices
-        -5 down the Z axis (so towards the camera).
-        Likewise, if I want a positive yaw rotation to be clockwise (going right) relative to the viewer, what I really do is take a rotation matrix that represents that orientation,
-        and then do the opposite to all vertices.
-        Thus, my view matrix represents the opposite of the direction I want my camera to be in.
+            Since I'm using row vectors, I read my multiplication order from left to right.
+            Had it been column vectors, I would've read it right to left.
+
+            1.
+            You Translate the world space vector by the opposite movement of the camera to simulate camera movement.
+
+            2.
+            You multiply by a yaw matrix, which basically transforms the translated camera point into a coordinate system which has been rotated around the y-axis.
+            If, for example, an object has been moved 10 units left (in my case, down the negative x-axis) and the camera is rotated 90 degrees to look straight down on it,
+            This means that the translated camera point have then been multiplied by a yaw matrix representing a coordinate system rotated 90 degrees around the y-axis, so that,
+            relative to the world space coordinate system, its x-axis is parallel with the world space matrix's z-axis.
+
+            3.
+            After the entire world has been rotated about the y-axis, it's multiplied by a pitch matrix in order to give the illusion of looking up or down.
+            This follows the same logic as in step two.
+            The camera point is brought into a coordinate system aligned with world space, but which is then rotated about the x-axis. This will give the illusion that you are looking up or down.
         */
-        world_reorientation_matrix.mul(&temp_new_orient_matrix)
+        translate_matrix.mul(&(yaw_matrix.get_transposed().mul(& pitch_matrix.get_transposed())))
+    }
+
+    fn fps_camera(&mut self) -> beagle_math::Mat4 {
+        let pitch_matrix = beagle_math::Mat4::rotate_x(self.pitch_in_radians);
+        let yaw_matrix = beagle_math::Mat4::rotate_y(self.yaw_in_radians);
+
+        let view_matrix = yaw_matrix.get_transposed().mul(&pitch_matrix.get_transposed());
+        let translate_matrix = beagle_math::Mat4::translate(&self.position.mul(-1.0));
+
+        translate_matrix.mul(&view_matrix)
+    }
+
+    fn space_camera(&mut self) -> beagle_math::Mat4 {
+        let previous_pitch_matrix = beagle_math::Mat4::rotate_x(self.previous_pitch);
+        let previous_yaw_matrix = beagle_math::Mat4::rotate_y(self.previous_yaw);
+        let previous_view_matrix = previous_yaw_matrix.get_transposed().mul(&previous_pitch_matrix.get_transposed());
+
+        let pitch_matrix = beagle_math::Mat4::rotate_x(self.pitch_in_radians);
+        let yaw_matrix = beagle_math::Mat4::rotate_y(self.yaw_in_radians);
+
+        let view_matrix = yaw_matrix.get_transposed().mul(&pitch_matrix.get_transposed());
+        let translate_matrix = beagle_math::Mat4::translate(&self.position.mul(-1.0));
+
+        // SAVES
+        self.previous_pitch += self.pitch_in_radians;
+        self.previous_yaw += self.yaw_in_radians;
+
+        // RESETS
+        self.pitch_in_radians = 0.0;
+        self.yaw_in_radians = 0.0;
+
+        translate_matrix.mul(&(view_matrix.mul(&previous_view_matrix)))
     }
 
     fn forward(&self) -> beagle_math::Vector3 {  
@@ -550,19 +618,23 @@ fn main() {
                 }
 
                 if window_helper.is_key_pressed(window::Key::D) {
-                    camera.position = camera.position.add(&camera.right());
+                    //camera.position = camera.position.add(&camera.right());
+                    camera.position.x += 0.5;
                 }
 
                 if window_helper.is_key_pressed(window::Key::A) {
-                    camera.position = camera.position.add(&camera.right().mul(-1.0));
+                    //camera.position = camera.position.add(&camera.right().mul(-1.0));
+                    camera.position.x -= 0.5;
                 }
 
                 if window_helper.is_key_pressed(window::Key::S) {
-                    camera.position = camera.position.add(&camera.forward().mul(-1.0));
+                    //camera.position = camera.position.add(&camera.forward().mul(-1.0));
+                    camera.position.z -= 0.5;
                 }
 
                 if window_helper.is_key_pressed(window::Key::W) {
-                    camera.position = camera.position.add(&camera.forward());
+                    //camera.position = camera.position.add(&camera.forward());
+                    camera.position.z += 0.5;
                 }
 
                 if window_helper.is_key_pressed(window::Key::Space) {
@@ -598,13 +670,9 @@ fn main() {
 
                 let rofl = mapped_resource.unwrap().pData as *mut VertexConstantBuffer;
 
-                let view_matrix = camera.view_matrix_spaceship();
+                let view_matrix = camera.space_camera();
 
-                if window_helper.is_key_pressed(window::Key::Space) {
-                    the_rot += 0.005;
-                }
-
-                let model_matrix = beagle_math::Mat4::uniform_scale(400.0).mul(&beagle_math::Mat4::rotate_y(the_rot));
+                let model_matrix = beagle_math::Mat4::uniform_scale(400.0);
 
                 // OBJECT -> WORLD -> VIEW -> PROJECTION
                 // MY MATH LIBRARY CURRENTLY USES ROW-MAJOR CONVENTION, THIS MEANS THAT YOUR TYPICAL P * V * TRSv order becomes v(SRT) * VIEW * PROJECTION

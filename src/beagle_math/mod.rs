@@ -267,7 +267,7 @@ impl Mat4
     pub fn rotate_y(rad: f32) -> Mat4 {
         Mat4 {
             matrix: [
-                rad.cos() , 0.0 , -rad.sin() , 0.0,
+                rad.cos(), 0.0 , -rad.sin() , 0.0,
                 0.0       , 1.0 , 0.0       , 0.0,
                 rad.sin(), 0.0 , rad.cos() , 0.0,
                 0.0       , 0.0 , 0.0       , 1.0
@@ -284,6 +284,27 @@ impl Mat4
                 0.0, 0.0, 0.0, 1.0
             ]
         }
+    }
+
+    pub fn parent_to_local(vec: &Vector3, orien: &Mat4) -> Mat4 {
+        let m11 = orien.get(0, 0);
+        let m12 = orien.get(0, 1);
+        let m13 = orien.get(0, 2);
+
+        let m21 = orien.get(1, 0);
+        let m22 = orien.get(1, 1);
+        let m23 = orien.get(1, 2);
+
+        let m31 = orien.get(2, 0);
+        let m32 = orien.get(2, 1);
+        let m33 = orien.get(2, 2);
+
+        Mat4::new([
+            m11, m12, m13, 0.0,
+            m21, m22, m23, 0.0,
+            m31, m32, m33, 0.0,
+            -(vec.x * m11 + vec.y * m21 + vec.z * m31), -(vec.x * m12 + vec.y * m22 + vec.z * m32), -(vec.x * m13 + vec.y * m23 + vec.z * m33), 1.0
+        ])
     }
 
     pub fn mul_row(&self, row: &Vector4) -> Vector4 {
