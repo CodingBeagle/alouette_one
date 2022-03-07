@@ -28,6 +28,7 @@ struct Camera {
     pitch_in_radians: f32,
     prev_pitch_in_radians: f32,
     yaw_in_radians: f32,
+    roll_in_radians: f32,
     prev_yaw_in_radians: f32,
     current_ont: beagle_math::Mat4,
     previous_ont: beagle_math::Mat4,
@@ -41,7 +42,9 @@ struct Camera {
 
     previous_position: beagle_math::Vector3,
     previous_pitch: f32,
-    previous_yaw: f32
+    previous_yaw: f32,
+
+    view_matrix: beagle_math::Mat4
 }
 
 impl Camera {
@@ -197,9 +200,36 @@ impl Camera {
         translate_matrix.mul(&(view_matrix.mul(&previous_view_matrix)))
     }
 
-    fn forward(&self) -> beagle_math::Vector3 {  
+    fn space_camera_2(&mut self) -> beagle_math::Mat4 {
+        let mut yaw = beagle_math::Quaternion::default();
+        yaw.set_rotation(beagle_math::Vector3::new(0.0, 1.0, 0.0), self.yaw_in_radians);
+
+        let mut pitch = beagle_math::Quaternion::default();
+        pitch.set_rotation(beagle_math::Vector3::new(1.0, 0.0, 0.0), -self.pitch_in_radians);
+
+        let mut roll = beagle_math::Quaternion::default();
+        roll.set_rotation(beagle_math::Vector3::new(0.0, 0.0, 1.0), self.roll_in_radians);
+
+        let rotation = yaw.cross(&pitch).cross(&roll).to_matrix().get_transposed();
+        let translation_matrix = beagle_math::Mat4::translate(&self.position.mul(-1.0));
+
+        self.view_matrix = self.view_matrix.mul(&(translation_matrix.mul(&rotation)));
+
+        self.previous_pitch += self.pitch_in_radians;
+        self.previous_yaw += self.yaw_in_radians;
+
+        beagle_math::Mat4::new(self.view_matrix.matrix)
+    }
+
+    fn forward(&self) -> beagle_math::Vector3 { 
+        /*
         let normed = beagle_math::Vector3::new(self.current_ont.get(0, 2), self.current_ont.get(1, 2), self.current_ont.get(2, 2)).normalized();
         normed
+         */
+
+        let normed = beagle_math::Vector3::new(self.view_matrix .get(0, 2), self.current_ont.get(1, 2), self.current_ont.get(2, 2)).normalized();
+
+        unimplemented!()
     }
 
     fn right(&self) -> beagle_math::Vector3 {
@@ -609,12 +639,15 @@ fn main() {
                 DispatchMessageW(&current_message);
             } else {
                 // GAME LOOP
+                camera.position = beagle_math::Vector3::zero();
+                camera.roll_in_radians = 0.0;
+
                 if window_helper.is_key_pressed(window::Key::Q) {
-                    camera.position.y += 0.5;
+                    camera.roll_in_radians = 0.05;
                 }
 
                 if window_helper.is_key_pressed(window::Key::E) {
-                    camera.position.y -= 0.5;
+                    camera.roll_in_radians = -0.05;
                 }
 
                 if window_helper.is_key_pressed(window::Key::D) {
@@ -647,8 +680,8 @@ fn main() {
                     should_quit = true;
                 }
 
-                camera.pitch_in_radians -= (window_helper.mouse_move_y as f32) * 0.005;
-                camera.yaw_in_radians += (window_helper.mouse_move_x as f32) * 0.005;
+                camera.pitch_in_radians = (window_helper.mouse_move_y as f32) * 0.005;
+                camera.yaw_in_radians = (window_helper.mouse_move_x as f32) * 0.005;
 
 
 
@@ -670,7 +703,7 @@ fn main() {
 
                 let rofl = mapped_resource.unwrap().pData as *mut VertexConstantBuffer;
 
-                let view_matrix = camera.space_camera();
+                let view_matrix = camera.space_camera_2();
 
                 let model_matrix = beagle_math::Mat4::uniform_scale(400.0);
 
