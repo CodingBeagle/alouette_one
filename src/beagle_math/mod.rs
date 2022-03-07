@@ -40,6 +40,7 @@ impl Vector2 {
 }
 
 // TODO: ADD SUBTRACT METHOD
+// TODO: Add helper builders for common axes, like "up", "right", "forward"
 #[derive(Default, Clone, Copy)]
 pub struct Vector3
 {

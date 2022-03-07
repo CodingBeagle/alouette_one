@@ -21,6 +21,7 @@ mod gltf;
 mod beagle_math;
 mod dx;
 mod window;
+mod camera;
 
 #[derive(Default)]
 struct Camera {
@@ -616,7 +617,7 @@ fn main() {
         let mut should_quit = false;
         let mut current_message = MSG::default();
 
-        let mut the_rot = 0.0f32;
+        let mut drone_camera = camera::FreeFlight::default();
 
         while !should_quit {
             // PROCESS INPUT
@@ -639,53 +640,53 @@ fn main() {
                 DispatchMessageW(&current_message);
             } else {
                 // GAME LOOP
-                camera.position = beagle_math::Vector3::zero();
-                camera.roll_in_radians = 0.0;
+                let mut drone_position_delta = beagle_math::Vector3::zero();
+                let mut drone_delta_pitch: f32 = 0.0;
+                let mut drone_delta_yaw: f32 = 0.0;
+                let mut drone_delta_roll: f32 = 0.0;
 
                 if window_helper.is_key_pressed(window::Key::Q) {
-                    camera.roll_in_radians = 0.05;
+                    drone_delta_roll = 0.05;
                 }
 
                 if window_helper.is_key_pressed(window::Key::E) {
-                    camera.roll_in_radians = -0.05;
+                    drone_delta_roll = -0.05;
                 }
 
                 if window_helper.is_key_pressed(window::Key::D) {
-                    //camera.position = camera.position.add(&camera.right());
-                    camera.position.x += 0.5;
+                    drone_position_delta.x = 0.5;
                 }
 
                 if window_helper.is_key_pressed(window::Key::A) {
-                    //camera.position = camera.position.add(&camera.right().mul(-1.0));
-                    camera.position.x -= 0.5;
-                }
-
-                if window_helper.is_key_pressed(window::Key::S) {
-                    //camera.position = camera.position.add(&camera.forward().mul(-1.0));
-                    camera.position.z -= 0.5;
+                    drone_position_delta.x = -0.5;
                 }
 
                 if window_helper.is_key_pressed(window::Key::W) {
-                    //camera.position = camera.position.add(&camera.forward());
-                    camera.position.z += 0.5;
+                    drone_position_delta.z = 0.5;
+                }
+
+                if window_helper.is_key_pressed(window::Key::S) {
+                    drone_position_delta.z = -0.5;
                 }
 
                 if window_helper.is_key_pressed(window::Key::Space) {
-                    camera.position = beagle_math::Vector3::zero();
-                    camera.yaw_in_radians = 0.0;
-                    camera.pitch_in_radians = 0.0;
+                    drone_position_delta.y = -0.5;
+                }
+
+                if window_helper.is_key_pressed(window::Key::LeftShift) {
+                    drone_position_delta.y = 0.5;
                 }
 
                 if window_helper.is_key_pressed(window::Key::Escape) {
                     should_quit = true;
                 }
-
-                camera.pitch_in_radians = (window_helper.mouse_move_y as f32) * 0.005;
-                camera.yaw_in_radians = (window_helper.mouse_move_x as f32) * 0.005;
-
-
-
+                
                 window_helper.update();
+
+                drone_delta_pitch = (window_helper.mouse_move_y as f32) * 0.005;
+                drone_delta_yaw = (window_helper.mouse_move_x as f32) * 0.005;
+
+                drone_camera.apply_move(-drone_delta_pitch, drone_delta_yaw, drone_delta_roll, drone_position_delta);
 
                 // RENDER
                 let clear_color = beagle_math::Vector4::new(0.45, 0.6, 0.95, 1.0);
@@ -703,7 +704,7 @@ fn main() {
 
                 let rofl = mapped_resource.unwrap().pData as *mut VertexConstantBuffer;
 
-                let view_matrix = camera.space_camera_2();
+                let view_matrix = drone_camera.view_matrix();
 
                 let model_matrix = beagle_math::Mat4::uniform_scale(400.0);
 
@@ -711,7 +712,7 @@ fn main() {
                 // MY MATH LIBRARY CURRENTLY USES ROW-MAJOR CONVENTION, THIS MEANS THAT YOUR TYPICAL P * V * TRSv order becomes v(SRT) * VIEW * PROJECTION
                 // THIS MEANS THAT INSTEAD OF READING RIGHT TO LEFT IN ORDER TO UNDERSTAND THE ORDER OF TRANSFORMS A VERTICE GOES THROUGH
                 // I HAVE TO READ FROM LEFT TO RIGHT.
-                (*rofl).worldViewProjection = model_matrix.mul(&view_matrix.mul(&beagle_math::Mat4::projection((45.0f32).to_radians(), 800.0, 600.0, 0.1, 5000.0)));
+                (*rofl).worldViewProjection = model_matrix.mul(&view_matrix.mul(&beagle_math::Mat4::projection((60.0f32).to_radians(), 800.0, 600.0, 0.1, 5000.0)));
                 
                 // My matrices are all designed for being multipled with a ROW vector.
                 // Also, I store my matrices in row-major order in memory.
