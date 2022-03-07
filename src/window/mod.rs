@@ -21,6 +21,7 @@ pub enum Key {
     E,
     Q,
     Space,
+    LeftShift,
     Escape
 }
 
@@ -59,6 +60,9 @@ pub fn map_to_key(virtual_key_code: i32) -> Key {
         },
         0x20 => {
             Key::Space
+        },
+        0x10 => {
+            Key::LeftShift
         },
         0x1B => {
             Key::Escape

@@ -21,19 +21,37 @@ mod gltf;
 mod beagle_math;
 mod dx;
 mod window;
+mod camera;
 
 #[derive(Default)]
 struct Camera {
     position: beagle_math::Vector3,
     pitch_in_radians: f32,
+    prev_pitch_in_radians: f32,
     yaw_in_radians: f32,
-    current_ont: beagle_math::Mat4
+    roll_in_radians: f32,
+    prev_yaw_in_radians: f32,
+    current_ont: beagle_math::Mat4,
+    previous_ont: beagle_math::Mat4,
+    world_rotation_matrix: beagle_math::Mat4,
+    prev_pos_x: f32,
+    prev_pos_y: f32,
+    prev_pos_z: f32,
+    world_ori: beagle_math::Mat4,
+
+    previous_view: beagle_math::Mat4,
+
+    previous_position: beagle_math::Vector3,
+    previous_pitch: f32,
+    previous_yaw: f32,
+
+    view_matrix: beagle_math::Mat4
 }
 
 impl Camera {
     fn view_matrix(&mut self) -> beagle_math::Mat4 {
-        let up_vector = beagle_math::Vector3::new(0.0, 1.0, 0.0);
-        let right_vector = beagle_math::Vector3::new(1.0, 0.0, 0.0);
+        let mut up_vector = beagle_math::Vector3::new(0.0, 1.0, 0.0);
+        let mut right_vector = beagle_math::Vector3::new(1.0, 0.0, 0.0);
 
         let mut yaw_rot = beagle_math::Quaternion::default();
         yaw_rot.set_rotation(up_vector, self.yaw_in_radians);
@@ -47,6 +65,8 @@ impl Camera {
 
         let translate_matrix = beagle_math::Mat4::translate(&beagle_math::Vector3::new(self.position.x * -1.0, self.position.y * -1.0, self.position.z * -1.0));
 
+        let mut view_orientation = res.to_matrix().get_transposed();
+
         /*
         !IMPORTANT!
         I transpose the orientation matrix for the view matrix. 
@@ -57,12 +77,160 @@ impl Camera {
         and then do the opposite to all vertices.
         Thus, my view matrix represents the opposite of the direction I want my camera to be in.
         */
-        translate_matrix.mul(&res.to_matrix().get_transposed())
+        translate_matrix.mul(&view_orientation)
     }
 
-    fn forward(&self) -> beagle_math::Vector3 {  
+    fn view_matrix_spaceship(&mut self) -> beagle_math::Mat4 {
+        let diff_pitch = self.pitch_in_radians - self.prev_pitch_in_radians;
+        let diff_yaw = self.yaw_in_radians - self.prev_yaw_in_radians;
+
+        let diff_pos_x = self.position.x - self.prev_pos_x;
+        let diff_pos_y = self.position.y - self.prev_pos_y;
+        let diff_pos_z = self.position.z - self.prev_pos_z;
+
+        let mut up_vector = beagle_math::Vector3::new(0.0, 1.0, 0.0);
+        let mut right_vector = beagle_math::Vector3::new(1.0, 0.0, 0.0);
+        let mut forward_vector = beagle_math::Vector3::new(0.0, 0.0, 1.0);
+
+        // WORLD ORIENTATION
+        let mut yaw_rot = beagle_math::Quaternion::default();
+        yaw_rot.set_rotation(up_vector, self.yaw_in_radians);
+
+        let mut pitch_rot = beagle_math::Quaternion::default();
+        pitch_rot.set_rotation(right_vector, self.pitch_in_radians);
+
+        let res = pitch_rot.cross(&yaw_rot);
+
+        self.current_ont = res.to_matrix();
+
+        // CAMERA ORIENTATION
+        let mut camera_yaw_rot = beagle_math::Quaternion::default();
+        camera_yaw_rot.set_rotation(up_vector, diff_yaw);
+
+        let mut camera_pitch_rot = beagle_math::Quaternion::default();
+        camera_pitch_rot.set_rotation(right_vector, diff_pitch);
+
+        let camera_rot_res = camera_pitch_rot.cross(&camera_yaw_rot);
+
+        let translate_matrix = beagle_math::Mat4::translate(&beagle_math::Vector3::new(self.position.x * -1.0, self.position.y * -1.0, self.position.z * -1.0));
+
+        let mut view_orientation = res.to_matrix().get_transposed();
+
+        self.prev_pitch_in_radians = self.pitch_in_radians;
+        self.prev_yaw_in_radians = self.yaw_in_radians;
+
+        self.prev_pos_x = self.position.x;
+        self.prev_pos_y = self.position.y;
+        self.prev_pos_z = self.position.z;
+
+        let ze_translate = beagle_math::Vector3::new(self.position.x * -1.0, self.position.y * -1.0, self.position.z * -1.0);
+
+        let world_translate = beagle_math::Mat4::translate(&beagle_math::Vector3::new(self.position.x * -1.0, self.position.y * -1.0, self.position.z * -1.0));
+        let world_rotate = pitch_rot.to_matrix().get_transposed();
+
+        let world_togetherness = world_translate.mul(&world_rotate);
+
+        let parent_translate = beagle_math::Mat4::identity();
+        let global_parent_rotate = yaw_rot.to_matrix().get_transposed();
+
+        let parent_matrix = parent_translate.mul(&global_parent_rotate);
+
+        let rofl = beagle_math::Mat4::parent_to_local(&ze_translate, &world_rotate);
+
+        rofl
+    }
+
+    fn awsum(&mut self) -> beagle_math::Mat4 {
+        let pitch_matrix = beagle_math::Mat4::rotate_x(self.pitch_in_radians);
+        let mut yaw_matrix = beagle_math::Mat4::rotate_y(self.yaw_in_radians);
+
+        let camera_position = self.position;
+
+        let translate_matrix = beagle_math::Mat4::translate(&camera_position.mul(-1.0));
+
+        /*
+            Since I'm using row vectors, I read my multiplication order from left to right.
+            Had it been column vectors, I would've read it right to left.
+
+            1.
+            You Translate the world space vector by the opposite movement of the camera to simulate camera movement.
+
+            2.
+            You multiply by a yaw matrix, which basically transforms the translated camera point into a coordinate system which has been rotated around the y-axis.
+            If, for example, an object has been moved 10 units left (in my case, down the negative x-axis) and the camera is rotated 90 degrees to look straight down on it,
+            This means that the translated camera point have then been multiplied by a yaw matrix representing a coordinate system rotated 90 degrees around the y-axis, so that,
+            relative to the world space coordinate system, its x-axis is parallel with the world space matrix's z-axis.
+
+            3.
+            After the entire world has been rotated about the y-axis, it's multiplied by a pitch matrix in order to give the illusion of looking up or down.
+            This follows the same logic as in step two.
+            The camera point is brought into a coordinate system aligned with world space, but which is then rotated about the x-axis. This will give the illusion that you are looking up or down.
+        */
+        translate_matrix.mul(&(yaw_matrix.get_transposed().mul(& pitch_matrix.get_transposed())))
+    }
+
+    fn fps_camera(&mut self) -> beagle_math::Mat4 {
+        let pitch_matrix = beagle_math::Mat4::rotate_x(self.pitch_in_radians);
+        let yaw_matrix = beagle_math::Mat4::rotate_y(self.yaw_in_radians);
+
+        let view_matrix = yaw_matrix.get_transposed().mul(&pitch_matrix.get_transposed());
+        let translate_matrix = beagle_math::Mat4::translate(&self.position.mul(-1.0));
+
+        translate_matrix.mul(&view_matrix)
+    }
+
+    fn space_camera(&mut self) -> beagle_math::Mat4 {
+        let previous_pitch_matrix = beagle_math::Mat4::rotate_x(self.previous_pitch);
+        let previous_yaw_matrix = beagle_math::Mat4::rotate_y(self.previous_yaw);
+        let previous_view_matrix = previous_yaw_matrix.get_transposed().mul(&previous_pitch_matrix.get_transposed());
+
+        let pitch_matrix = beagle_math::Mat4::rotate_x(self.pitch_in_radians);
+        let yaw_matrix = beagle_math::Mat4::rotate_y(self.yaw_in_radians);
+
+        let view_matrix = yaw_matrix.get_transposed().mul(&pitch_matrix.get_transposed());
+        let translate_matrix = beagle_math::Mat4::translate(&self.position.mul(-1.0));
+
+        // SAVES
+        self.previous_pitch += self.pitch_in_radians;
+        self.previous_yaw += self.yaw_in_radians;
+
+        // RESETS
+        self.pitch_in_radians = 0.0;
+        self.yaw_in_radians = 0.0;
+
+        translate_matrix.mul(&(view_matrix.mul(&previous_view_matrix)))
+    }
+
+    fn space_camera_2(&mut self) -> beagle_math::Mat4 {
+        let mut yaw = beagle_math::Quaternion::default();
+        yaw.set_rotation(beagle_math::Vector3::new(0.0, 1.0, 0.0), self.yaw_in_radians);
+
+        let mut pitch = beagle_math::Quaternion::default();
+        pitch.set_rotation(beagle_math::Vector3::new(1.0, 0.0, 0.0), -self.pitch_in_radians);
+
+        let mut roll = beagle_math::Quaternion::default();
+        roll.set_rotation(beagle_math::Vector3::new(0.0, 0.0, 1.0), self.roll_in_radians);
+
+        let rotation = yaw.cross(&pitch).cross(&roll).to_matrix().get_transposed();
+        let translation_matrix = beagle_math::Mat4::translate(&self.position.mul(-1.0));
+
+        self.view_matrix = self.view_matrix.mul(&(translation_matrix.mul(&rotation)));
+
+        self.previous_pitch += self.pitch_in_radians;
+        self.previous_yaw += self.yaw_in_radians;
+
+        beagle_math::Mat4::new(self.view_matrix.matrix)
+    }
+
+    fn forward(&self) -> beagle_math::Vector3 { 
+        /*
         let normed = beagle_math::Vector3::new(self.current_ont.get(0, 2), self.current_ont.get(1, 2), self.current_ont.get(2, 2)).normalized();
         normed
+         */
+
+        let normed = beagle_math::Vector3::new(self.view_matrix .get(0, 2), self.current_ont.get(1, 2), self.current_ont.get(2, 2)).normalized();
+
+        unimplemented!()
     }
 
     fn right(&self) -> beagle_math::Vector3 {
@@ -449,7 +617,7 @@ fn main() {
         let mut should_quit = false;
         let mut current_message = MSG::default();
 
-        let mut the_rot = 0.0f32;
+        let mut drone_camera = camera::FreeFlight::default();
 
         while !should_quit {
             // PROCESS INPUT
@@ -472,44 +640,53 @@ fn main() {
                 DispatchMessageW(&current_message);
             } else {
                 // GAME LOOP
+                let mut drone_position_delta = beagle_math::Vector3::zero();
+                let mut drone_delta_pitch: f32 = 0.0;
+                let mut drone_delta_yaw: f32 = 0.0;
+                let mut drone_delta_roll: f32 = 0.0;
+
                 if window_helper.is_key_pressed(window::Key::Q) {
-                    camera.position.y += 0.5;
+                    drone_delta_roll = 0.05;
                 }
 
                 if window_helper.is_key_pressed(window::Key::E) {
-                    camera.position.y -= 0.5;
+                    drone_delta_roll = -0.05;
                 }
 
                 if window_helper.is_key_pressed(window::Key::D) {
-                    camera.position = camera.position.add(&camera.right());
+                    drone_position_delta.x = 0.5;
                 }
 
                 if window_helper.is_key_pressed(window::Key::A) {
-                    camera.position = camera.position.add(&camera.right().mul(-1.0));
-                }
-
-                if window_helper.is_key_pressed(window::Key::S) {
-                    camera.position = camera.position.add(&camera.forward().mul(-1.0));
+                    drone_position_delta.x = -0.5;
                 }
 
                 if window_helper.is_key_pressed(window::Key::W) {
-                    camera.position = camera.position.add(&camera.forward());
+                    drone_position_delta.z = 0.5;
+                }
+
+                if window_helper.is_key_pressed(window::Key::S) {
+                    drone_position_delta.z = -0.5;
                 }
 
                 if window_helper.is_key_pressed(window::Key::Space) {
-                    camera.position = beagle_math::Vector3::zero();
-                    camera.yaw_in_radians = 0.0;
-                    camera.pitch_in_radians = 0.0;
+                    drone_position_delta.y = -0.5;
+                }
+
+                if window_helper.is_key_pressed(window::Key::LeftShift) {
+                    drone_position_delta.y = 0.5;
                 }
 
                 if window_helper.is_key_pressed(window::Key::Escape) {
                     should_quit = true;
                 }
-
-                camera.pitch_in_radians -= (window_helper.mouse_move_y as f32) * 0.005;
-                camera.yaw_in_radians += (window_helper.mouse_move_x as f32) * 0.005;
-
+                
                 window_helper.update();
+
+                drone_delta_pitch = (window_helper.mouse_move_y as f32) * 0.005;
+                drone_delta_yaw = (window_helper.mouse_move_x as f32) * 0.005;
+
+                drone_camera.apply_move(-drone_delta_pitch, drone_delta_yaw, drone_delta_roll, drone_position_delta);
 
                 // RENDER
                 let clear_color = beagle_math::Vector4::new(0.45, 0.6, 0.95, 1.0);
@@ -527,19 +704,15 @@ fn main() {
 
                 let rofl = mapped_resource.unwrap().pData as *mut VertexConstantBuffer;
 
-                let view_matrix = camera.view_matrix();
+                let view_matrix = drone_camera.view_matrix();
 
-                if window_helper.is_key_pressed(window::Key::Space) {
-                    the_rot += 0.005;
-                }
-
-                let model_matrix = beagle_math::Mat4::uniform_scale(400.0).mul(&beagle_math::Mat4::rotate_y(the_rot));
+                let model_matrix = beagle_math::Mat4::uniform_scale(400.0);
 
                 // OBJECT -> WORLD -> VIEW -> PROJECTION
                 // MY MATH LIBRARY CURRENTLY USES ROW-MAJOR CONVENTION, THIS MEANS THAT YOUR TYPICAL P * V * TRSv order becomes v(SRT) * VIEW * PROJECTION
                 // THIS MEANS THAT INSTEAD OF READING RIGHT TO LEFT IN ORDER TO UNDERSTAND THE ORDER OF TRANSFORMS A VERTICE GOES THROUGH
                 // I HAVE TO READ FROM LEFT TO RIGHT.
-                (*rofl).worldViewProjection = model_matrix.mul(&view_matrix.mul(&beagle_math::Mat4::projection((45.0f32).to_radians(), 800.0, 600.0, 0.1, 5000.0)));
+                (*rofl).worldViewProjection = model_matrix.mul(&view_matrix.mul(&beagle_math::Mat4::projection((60.0f32).to_radians(), 800.0, 600.0, 0.1, 5000.0)));
                 
                 // My matrices are all designed for being multipled with a ROW vector.
                 // Also, I store my matrices in row-major order in memory.
