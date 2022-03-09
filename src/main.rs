@@ -383,10 +383,6 @@ fn main() {
 
         dx_device_context.VSSetConstantBuffers(0, 1, &mut vertex_constant_buffer);
 
-        let mut camera = Camera::default();
-        camera.position.z = -4.0;
-        camera.position.y = 0.5;
-
         let mut should_quit = false;
         let mut current_message = MSG::default();
 
