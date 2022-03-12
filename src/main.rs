@@ -71,7 +71,7 @@ fn main() {
             PWSTR(window_class_name.as_mut_ptr()),
             PWSTR(window_title.as_mut_ptr()),
             WS_OVERLAPPEDWINDOW | WS_VISIBLE,
-            (desktop_width_in_pixels / 2) - 400, (desktop_height_in_pixels / 2) - 300, 800, 600,
+            (desktop_width_in_pixels / 2) - (window::WINDOW_WIDTH as i32 / 2), (desktop_height_in_pixels / 2) - (window::WINDOW_HEIGHT as i32 / 2), window::WINDOW_WIDTH as i32, window::WINDOW_HEIGHT as i32,
             None,
             None,
             h_instance,
@@ -146,8 +146,8 @@ fn main() {
 
         // The width and the height of the texture in Texels.
         // Should be the same size as the back buffer we display in our window.
-        depth_buffer_texture_description.Width = 800;
-        depth_buffer_texture_description.Height = 600;
+        depth_buffer_texture_description.Width = window::WINDOW_WIDTH;
+        depth_buffer_texture_description.Height = window::WINDOW_HEIGHT;
 
         // The number of MipMap levels in the texture.
         // We only need 1 mipmap level in our depth buffer.
@@ -337,8 +337,8 @@ fn main() {
         // The viewport is used by DirectX in the Rasterizer stage, in order to map Normalizerd Device Coordinates Into
         // a 2D surface render target.
         let viewport = D3D11_VIEWPORT {
-            Height: 600.0,
-            Width: 800.0,
+            Height: window::WINDOW_HEIGHT as f32,
+            Width: window::WINDOW_WIDTH as f32,
             MinDepth: 0.0,
             MaxDepth: 1.0,
             TopLeftX: 0.0,
@@ -364,7 +364,7 @@ fn main() {
         vertex_constant_buffer_description.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
 
         let mut world_view_projection_matrix = VertexConstantBuffer {
-            worldViewProjection: beagle_math::Mat4::projection((45.0f32).to_radians(), 800.0, 600.0, 0.1, 100.0)
+            worldViewProjection: beagle_math::Mat4::projection((45.0f32).to_radians(), window::WINDOW_WIDTH as f32, window::WINDOW_HEIGHT as f32, 0.1, 100.0)
         };
 
         world_view_projection_matrix.worldViewProjection.tranpose();
@@ -483,7 +483,7 @@ fn main() {
                 // MY MATH LIBRARY CURRENTLY USES ROW-MAJOR CONVENTION, THIS MEANS THAT YOUR TYPICAL P * V * TRSv order becomes v(SRT) * VIEW * PROJECTION
                 // THIS MEANS THAT INSTEAD OF READING RIGHT TO LEFT IN ORDER TO UNDERSTAND THE ORDER OF TRANSFORMS A VERTICE GOES THROUGH
                 // I HAVE TO READ FROM LEFT TO RIGHT.
-                (*rofl).worldViewProjection = model_matrix.mul(&view_matrix.mul(&beagle_math::Mat4::projection((60.0f32).to_radians(), 800.0, 600.0, 0.1, 5000.0)));
+                (*rofl).worldViewProjection = model_matrix.mul(&view_matrix.mul(&beagle_math::Mat4::projection((60.0f32).to_radians(), window::WINDOW_WIDTH as f32, window::WINDOW_HEIGHT as f32, 0.1, 5000.0)));
                 
                 // My matrices are all designed for being multipled with a ROW vector.
                 // Also, I store my matrices in row-major order in memory.
@@ -571,8 +571,8 @@ fn create_swap_chain_description(main_window: isize) -> DXGI_SWAP_CHAIN_DESC {
         let mut swap_chain_description = DXGI_SWAP_CHAIN_DESC::default();
         
         // Dimensions of the swap chain
-        swap_chain_description.BufferDesc.Width = 800;
-        swap_chain_description.BufferDesc.Height = 600;
+        swap_chain_description.BufferDesc.Width = window::WINDOW_WIDTH;
+        swap_chain_description.BufferDesc.Height = window::WINDOW_HEIGHT;
 
         // Refresh rate of the swap chain
         swap_chain_description.BufferDesc.RefreshRate.Numerator = 60;

@@ -71,6 +71,9 @@ pub fn map_to_key(virtual_key_code: i32) -> Key {
     }
 }
 
+pub const WINDOW_WIDTH: u32 = 1680;
+pub const WINDOW_HEIGHT: u32 = 1050;
+
 #[derive(Default)]
 pub struct Window {
     pub lock_cursor_center: bool,
@@ -117,8 +120,8 @@ impl Window {
                             panic!("Failed to retrieve window rectangle.")
                         }
 
-                        self.mouse_center_position_x = window_rectangle.left + (800 / 2);
-                        self.mouse_center_position_y = window_rectangle.top + (600 / 2);
+                        self.mouse_center_position_x = window_rectangle.left + (WINDOW_WIDTH as i32 / 2);
+                        self.mouse_center_position_y = window_rectangle.top + (WINDOW_HEIGHT as i32 / 2);
     
                         // TODO: Move window dimensions to window struct, instead of values everywhere in the code!
                         SetCursorPos(self.mouse_center_position_x, self.mouse_center_position_y);
