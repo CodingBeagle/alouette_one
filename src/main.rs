@@ -251,6 +251,8 @@ fn main() {
 
                 This structure makes it easy to interweave the two, to create a list of vertices for, say, a line list to render.
 
+                It's also important to note that Blender will export SPLIT vertex normals, that is, it will not output a single weighted normal for each vertex, but instead
+                each vertex will have the same amount of vertex normals as there is adjacent surfaces to that vertex. So you get one surface direction for each surface the vertex is used to represent.
         */
         for (i, vert_pos) in converted_vertex_normals.iter().enumerate() {
             let vert_normal_directions = beagle_math::Vector3::new(vert_pos.x, vert_pos.y, vert_pos.z);
