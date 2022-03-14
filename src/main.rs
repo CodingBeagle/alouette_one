@@ -199,7 +199,7 @@ fn main() {
         // TODO: Exercise - Enumerate through the available outputs (monitors) for an adapter. Use IDXGIAdapter::EnumOutputs.
         // TODO: Exercise - Each output has a lit of supported display modes. For each of them, list width, height, refresh rate, pixel format, etc...
 
-        let path_to_mesh = current_executable_path.parent().unwrap().join("resources\\terrain\\terrain.gltf");
+        let path_to_mesh = current_executable_path.parent().unwrap().join("resources\\colored_sphere\\colored_sphere.gltf");
 
         let gltf = gltf::GLTF::new(path_to_mesh);
 
@@ -212,25 +212,89 @@ fn main() {
 
         // COLOR BUFFER
         let color_buffer = Some(create_buffer::<u8>(BufferType::Vertex, Usage::GpuReadWrite, CpuAccess::None, primitive.vertex_colors.as_ref().unwrap().buffer_data.as_slice()));
+            
+        // VERTEX NORMAL BUFFER
+        let mut lol = primitive.vertex_normals.as_ref().unwrap().buffer_data.clone();
+        let normals_buffer = Some(create_buffer::<u8>(BufferType::Vertex, Usage::GpuReadWrite, CpuAccess::None, &lol));
+
+        // WEAVING MAGIC
+        let vertex_positions = primitive.vertex_positions.buffer_data.clone();
+        let normal_positions = primitive.vertex_normals.as_ref().unwrap().buffer_data.clone();
+
+        let byte_stride = ((mem::size_of::<f32>() * 3) as u32);
+
+        let mut my_experiment: Vec<u8> = vec!();
+
+        for i in 0..240 {
+            let current_byte_offs = (i * byte_stride as usize) as usize;
+
+            let vertex_pos: &[u8] = &vertex_positions[current_byte_offs..((current_byte_offs + byte_stride as usize))];
+            let normal_pos: &[u8] = &normal_positions[current_byte_offs..((current_byte_offs + byte_stride as usize))];
+
+            my_experiment.extend(vertex_pos.iter().cloned());
+            my_experiment.extend(normal_pos.iter().cloned());
+        }
+
+        //let combined_normals_buffer = Some(create_buffer::<u8>(BufferType::Vertex, Usage::GpuReadWrite, CpuAccess::None, &my_experiment));
+
+        let converted_vertex_normals = gltf::GLTF::decode_binary_to_vector3(&normal_positions);
+        let converted_normal_positions = gltf::GLTF::decode_binary_to_vector3(&vertex_positions);
+
+        let the_final = gltf::GLTF::decode_binary_to_vector3(&my_experiment);
+
+        let mut the_finals: Vec<beagle_math::Vector3> = vec!();
+
+        /*
+                Blender GLTF findings on vertex normals:
+                The buffer with vertex positions will have each vertex position replicated the amount of times that there exists a vertex normal for that position (for each of the adjacement faces of the vertex).
+                The buffer with vertex normals will have the vertex normal as a direction, with each row / index belonging to the vertex in the same row / index of the vertex positions buffer.
+
+                This structure makes it easy to interweave the two, to create a list of vertices for, say, a line list to render.
+
+        */
+        for (i, vert_pos) in converted_vertex_normals.iter().enumerate() {
+            let vert_normal_directions = beagle_math::Vector3::new(vert_pos.x, vert_pos.y, vert_pos.z);
+
+            // TODO: Important learning
+            // When working with vectors, it's important to realize if you're working on something representing a position or a direction.
+            // Because it makes no sense to normalize a vector representing a position. That will screw with your positions, obviously.
+            let scaled = vert_normal_directions.mul(0.2 / vert_normal_directions.length());
+
+            let the_other = beagle_math::Vector3::new(
+                converted_normal_positions[i].x + scaled.x,
+                converted_normal_positions[i].y + scaled.y,
+                converted_normal_positions[i].z + scaled.z);
+
+            the_finals.push(beagle_math::Vector3::new(converted_normal_positions[i].x, converted_normal_positions[i].y, converted_normal_positions[i].z));
+            the_finals.push(beagle_math::Vector3::new(
+                the_other.x,
+                the_other.y,
+                the_other.z));
+        }
+
+        let combined_normals_buffer = Some(create_buffer::<beagle_math::Vector3>(BufferType::Vertex, Usage::GpuReadWrite, CpuAccess::None, &the_finals));
 
         let holy_moly = [
-            vertex_buffer,
-            color_buffer
+            vertex_buffer.clone(),
+            color_buffer.clone(),
+            normals_buffer.clone()
         ];
 
         let strides = [
             (mem::size_of::<f32>() * 3) as u32, // Size in bytes of each element that are to be used
-            (mem::size_of::<u16>() * 4) as u32
+            (mem::size_of::<u16>() * 4) as u32, // Color Buffer Strides
+            (mem::size_of::<f32>() * 3) as u32 // Vertex Normals Strides
         ];
 
         let offsets = [
+            0,
             0,
             0
         ];
         
         dx_device_context.IASetVertexBuffers(
             0,
-            2,
+            3,
             holy_moly.as_ptr(),
             strides.as_ptr(),
             offsets.as_ptr());
@@ -258,6 +322,7 @@ fn main() {
         // TODO: Read up on this whole layout object thing again...
         let semantic_name_position = CString::new("POSITION").unwrap();
         let semantic_name_color = CString::new("COLOR").unwrap();
+        let semantic_name_normal = CString::new("NORMAL").unwrap();
 
         let input_element_descriptions = [
             D3D11_INPUT_ELEMENT_DESC {
@@ -277,6 +342,15 @@ fn main() {
                 AlignedByteOffset: D3D11_APPEND_ALIGNED_ELEMENT,
                 InputSlotClass: D3D11_INPUT_PER_VERTEX_DATA,
                 InstanceDataStepRate: 0
+            },
+            D3D11_INPUT_ELEMENT_DESC {
+                SemanticName: PSTR(semantic_name_normal.as_ptr() as *mut u8),
+                SemanticIndex: 0,
+                Format: DXGI_FORMAT_R32G32B32_FLOAT,
+                InputSlot: 0,
+                AlignedByteOffset: D3D11_APPEND_ALIGNED_ELEMENT,
+                InputSlotClass: D3D11_INPUT_PER_VERTEX_DATA,
+                InstanceDataStepRate: 0
             }
         ];
 
@@ -285,14 +359,14 @@ fn main() {
         // If it fits.
         let input_layout_object = match dx_device.CreateInputLayout(
             input_element_descriptions.as_ptr(),
-            2,
+            3,
             compiled_vertex_shader_code.as_ptr() as *const c_void,
             compiled_vertex_shader_code.len()) {
                 Ok(ilo) => ilo,
                 Err(err) => panic!("Failed to create InputLayoutObject: {}", err)
             };
 
-        dx_device_context.IASetInputLayout(input_layout_object);
+        dx_device_context.IASetInputLayout(&input_layout_object);
 
         // We must tell the IA stage how to assemble the vertices into primitives.
         // You do this by specifying a "primitive type" through the Primitive Topology method.
@@ -315,15 +389,16 @@ fn main() {
             };
 
         // A vertex shader must always be active for the pipeline to execute
-        dx_device_context.VSSetShader(vertex_shader, ptr::null(), 0);
-        dx_device_context.PSSetShader(pixel_shader, ptr::null(), 0);
+        dx_device_context.VSSetShader(&vertex_shader, ptr::null(), 0);
+        dx_device_context.PSSetShader(&pixel_shader, ptr::null(), 0);
 
         // Create Rasterizer state
         // TODO: Definitely read more up on this
         // https://docs.microsoft.com/en-us/windows/win32/api/d3d11/ns-d3d11-d3d11_rasterizer_desc
         // TODO: Make it possible to switch between wireframe and solid mode.
         let mut rasterizer_description = D3D11_RASTERIZER_DESC::default();
-        rasterizer_description.FillMode = D3D11_FILL_SOLID | D3D11_FILL_WIREFRAME;
+        //rasterizer_description.FillMode = D3D11_FILL_WIREFRAME;
+        rasterizer_description.FillMode = D3D11_FILL_SOLID;
         rasterizer_description.CullMode = D3D11_CULL_NONE;
         rasterizer_description.FrontCounterClockwise = BOOL(0);
         rasterizer_description.ScissorEnable = BOOL(0);
@@ -333,6 +408,13 @@ fn main() {
         let rasterizer_state = dx_device.CreateRasterizerState(&rasterizer_description).unwrap();
 
         dx_device_context.RSSetState(rasterizer_state);
+
+        // Prepare shaders for vertex normal rendering
+        let path_to_vertex_normals_shader = current_executable_path.parent().unwrap().join("resources\\shaders\\shaders\\compiled-vertex-normals.shader");
+        let compiled_vertex_normals_shader_code = fs::read(path_to_vertex_normals_shader).unwrap();
+
+        let vertex_normals_shader_input_layout = prepare_vertex_normals_input_layout(&dx_device, &compiled_vertex_normals_shader_code);
+        let vertex_normals_shader = prepare_vertex_normals_shader(&dx_device, &compiled_vertex_normals_shader_code);
 
         // The viewport is used by DirectX in the Rasterizer stage, in order to map Normalizerd Device Coordinates Into
         // a 2D surface render target.
@@ -477,7 +559,7 @@ fn main() {
 
                 let view_matrix = drone_camera.view_matrix();
 
-                let model_matrix = beagle_math::Mat4::uniform_scale(400.0);
+                let model_matrix = beagle_math::Mat4::uniform_scale(5.0);
 
                 // OBJECT -> WORLD -> VIEW -> PROJECTION
                 // MY MATH LIBRARY CURRENTLY USES ROW-MAJOR CONVENTION, THIS MEANS THAT YOUR TYPICAL P * V * TRSv order becomes v(SRT) * VIEW * PROJECTION
@@ -504,7 +586,40 @@ fn main() {
                     1.0, 
                     0);
 
-                // TODO: Read indices count from actual GLTF file!!
+                // RENDER VERTEX NORMALS
+                dx_device_context.IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_LINELIST);
+                dx_device_context.VSSetShader(&vertex_normals_shader, ptr::null(), 0);
+                dx_device_context.IASetInputLayout(&vertex_normals_shader_input_layout);
+                dx_device_context.VSSetConstantBuffers(0, 1, &mut vertex_constant_buffer);
+                dx_device_context.IASetIndexBuffer(None,0, 0);
+                dx_device_context.IASetVertexBuffers(
+                    0,
+                    1,
+                    &combined_normals_buffer,
+                    [
+                        (mem::size_of::<f32>() * 3) as u32
+                    ].as_ptr(),
+                    [
+                        0
+                    ].as_ptr());
+
+                dx_device_context.Draw(240, 0);
+
+                // RENDER ENTITY
+                // We must tell the IA stage how to assemble the vertices into primitives.
+                // You do this by specifying a "primitive type" through the Primitive Topology method.
+                dx_device_context.IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+                dx_device_context.VSSetShader(&vertex_shader, ptr::null(), 0);
+                dx_device_context.IASetInputLayout(&input_layout_object);
+                dx_device_context.VSSetConstantBuffers(0, 1, &mut vertex_constant_buffer);
+                dx_device_context.IASetIndexBuffer(&index_buffer, DXGI_FORMAT_R16_UINT, 0);
+                dx_device_context.IASetVertexBuffers(
+                    0,
+                    3,
+                    holy_moly.as_ptr(),
+                    strides.as_ptr(),
+                    offsets.as_ptr());
+
                 dx_device_context.DrawIndexed(primitive.vertex_indices.element_count, 0, 0);
 
                 if swap_chain.Present(1, 0).is_err() {
@@ -512,6 +627,45 @@ fn main() {
                 }
             }
         }
+    }
+}
+
+fn prepare_vertex_normals_shader(dx_device: &ID3D11Device, compiled_shader_code: &Vec<u8>) -> ID3D11VertexShader {
+    unsafe {
+        match dx_device.CreateVertexShader(
+            compiled_shader_code.as_ptr() as *const c_void,
+            compiled_shader_code.len(),
+            None) {
+                Ok(vs) => vs,
+                Err(err) => panic!("Failed to create vertex shader: {}", err)
+            }
+    }
+}
+
+fn prepare_vertex_normals_input_layout(dx_device: &ID3D11Device, compiled_vertex_shader_code: &Vec<u8>) -> ID3D11InputLayout {
+    unsafe {
+        let semantic_name_position = CString::new("POSITION").unwrap();
+
+        let input_element_descriptions = [
+            D3D11_INPUT_ELEMENT_DESC {
+                SemanticName: PSTR(semantic_name_position.as_ptr() as *mut u8),
+                SemanticIndex: 0,
+                Format: DXGI_FORMAT_R32G32B32_FLOAT,
+                InputSlot: 0,
+                AlignedByteOffset: D3D11_APPEND_ALIGNED_ELEMENT,
+                InputSlotClass: D3D11_INPUT_PER_VERTEX_DATA,
+                InstanceDataStepRate: 0
+            }
+        ];
+
+        match dx_device.CreateInputLayout(
+            input_element_descriptions.as_ptr(),
+            1,
+            compiled_vertex_shader_code.as_ptr() as *const c_void,
+            compiled_vertex_shader_code.len()) {
+                Ok(ilo) => ilo,
+                Err(err) => panic!("Failed to create input layout object for normals shader: {}", err)
+            }
     }
 }
 

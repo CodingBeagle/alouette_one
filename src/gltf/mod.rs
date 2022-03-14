@@ -5,6 +5,12 @@ use std::cell::{RefCell, Ref};
 
 extern crate base64;
 
+use byteorder::{LittleEndian, ByteOrder};
+
+use std::mem::{size_of};
+
+use crate::beagle_math;
+
 // TODO:
 /*
     Perhaps I should split up the actual model that is read from JSON and the 
@@ -28,6 +34,32 @@ impl GLTF {
         serde_json::from_str(&gltf_file_content).unwrap()
     }
 
+    pub fn decode_binary_to_vector3(binary_vector_data: &[u8]) -> Vec<beagle_math::Vector3> {
+        let size_of_f32 = size_of::<f32>();
+        let size_of_vector_in_bytes = size_of_f32 * 3;
+
+        if binary_vector_data.len() % size_of_vector_in_bytes != 0 {
+            panic!("Binary vector data is not divisible by size of a vector in bytes, which is {}", size_of_vector_in_bytes);
+        }
+
+        let mut result: Vec<beagle_math::Vector3> = vec!();
+
+        for i in (0..(binary_vector_data.len())).step_by(size_of_vector_in_bytes) {
+            let mut vector_elements: Vec<f32> = vec!();
+
+            for x in (0..size_of_vector_in_bytes).step_by(size_of_f32) {
+                let mut slice_start_offset = i + x;
+                let mut slice_end_offset = slice_start_offset + size_of_f32;
+
+                vector_elements.push(LittleEndian::read_f32(&binary_vector_data[slice_start_offset..slice_end_offset]));
+            }
+
+            result.push(beagle_math::Vector3::new(vector_elements[0], vector_elements[1], vector_elements[2]));
+        }
+ 
+        result
+    }
+
     pub fn load_meshes(&self) -> Vec<LoadedMesh> {
         let mut loaded_meshes: Vec<LoadedMesh> = vec!();
 
@@ -38,7 +70,8 @@ impl GLTF {
                 loaded_primitives.push(LoadedPrimitive {
                     vertex_positions: self.get_buffer_data_for_accessor(primitive.attributes.position as i32),
                     vertex_indices: self.get_buffer_data_for_accessor(primitive.indices as i32),
-                    vertex_colors: Some(self.get_buffer_data_for_accessor(primitive.attributes.color_0 as i32))
+                    vertex_colors: Some(self.get_buffer_data_for_accessor(primitive.attributes.color_0 as i32)),
+                    vertex_normals: Some(self.get_buffer_data_for_accessor(primitive.attributes.normal as i32))
                 });
             }
 
@@ -197,7 +230,9 @@ struct Attribute {
     #[serde(rename = "POSITION")]
     position: u32,
     #[serde(rename = "COLOR_0", default)]
-    color_0: u32
+    color_0: u32,
+    #[serde(rename = "NORMAL", default)]
+    normal: u32
 }
 
 #[derive(Debug)]
@@ -210,6 +245,7 @@ pub struct LoadedPrimitive {
     pub vertex_indices: LoadedBuffer,
     pub vertex_positions: LoadedBuffer,
     pub vertex_colors: Option<LoadedBuffer>,
+    pub vertex_normals: Option<LoadedBuffer>
 }
 
 #[derive(Debug)]

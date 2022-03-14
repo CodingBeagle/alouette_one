@@ -11,12 +11,14 @@ struct VSIn
 {
     float3 PosL : POSITION;
     float4 Color : COLOR0;
+    float3 Normal : NORMAL0;
 };
 
 struct VSOut
 {
     float4 PosH : SV_POSITION;
     float4 Color : COLOR0;
+    float3 Normal : NORMAL0;
 };
 
 VSOut VS(VSIn input)
