@@ -199,7 +199,7 @@ fn main() {
         // TODO: Exercise - Enumerate through the available outputs (monitors) for an adapter. Use IDXGIAdapter::EnumOutputs.
         // TODO: Exercise - Each output has a lit of supported display modes. For each of them, list width, height, refresh rate, pixel format, etc...
 
-        let path_to_mesh = current_executable_path.parent().unwrap().join("resources\\colored_sphere\\colored_sphere.gltf");
+        let path_to_mesh = current_executable_path.parent().unwrap().join("resources\\purple_box.gltf");
 
         let gltf = gltf::GLTF::new(path_to_mesh);
 
@@ -208,39 +208,24 @@ fn main() {
         let primitive = mesh.loaded_primitives.first().unwrap();
 
         // VERTEX BUFFER
-        let vertex_buffer = Some(create_buffer::<u8>(BufferType::Vertex, Usage::GpuReadWrite, CpuAccess::None, primitive.vertex_positions.buffer_data.as_slice()));
+        let vertex_positions = primitive.vertex_positions.buffer_data.clone();
+        let converted_normal_positions = gltf::GLTF::decode_binary_to_vector3(&vertex_positions);
+        let decoded_index_buffer = gltf::GLTF::decode_binary_to_scalar(&primitive.vertex_indices.buffer_data);
+
+        let expanded_vertex_buffer = gltf::GLTF::expand_by_indices::<beagle_math::Vector3>(&decoded_index_buffer, &converted_normal_positions);
+        let vertex_buffer = Some(create_buffer::<beagle_math::Vector3>(BufferType::Vertex, Usage::GpuReadWrite, CpuAccess::None, expanded_vertex_buffer.as_slice()));
 
         // COLOR BUFFER
-        let color_buffer = Some(create_buffer::<u8>(BufferType::Vertex, Usage::GpuReadWrite, CpuAccess::None, primitive.vertex_colors.as_ref().unwrap().buffer_data.as_slice()));
+        let vertex_colors = primitive.vertex_colors.as_ref().unwrap().buffer_data.as_slice();
+        let decoded_vertex_colors = gltf::GLTF::decode_binary_to_vector4::<u16>(vertex_colors);
+        let expanded_vertex_colors = gltf::GLTF::expand_by_indices::<beagle_math::Vector4>(&decoded_index_buffer, &decoded_vertex_colors);
+        let color_buffer = Some(create_buffer::<beagle_math::Vector4>(BufferType::Vertex, Usage::GpuReadWrite, CpuAccess::None, expanded_vertex_colors.as_slice()));
             
         // VERTEX NORMAL BUFFER
-        let mut lol = primitive.vertex_normals.as_ref().unwrap().buffer_data.clone();
-        let normals_buffer = Some(create_buffer::<u8>(BufferType::Vertex, Usage::GpuReadWrite, CpuAccess::None, &lol));
+        let the_vertex_normals = gltf::GLTF::calculate_vertex_normals(&expanded_vertex_buffer);
+        let normals_buffer = Some(create_buffer::<beagle_math::Vector3>(BufferType::Vertex, Usage::GpuReadWrite, CpuAccess::None, &the_vertex_normals));
 
         // WEAVING MAGIC
-        let vertex_positions = primitive.vertex_positions.buffer_data.clone();
-        let normal_positions = primitive.vertex_normals.as_ref().unwrap().buffer_data.clone();
-
-        let byte_stride = ((mem::size_of::<f32>() * 3) as u32);
-
-        let mut my_experiment: Vec<u8> = vec!();
-
-        for i in 0..240 {
-            let current_byte_offs = (i * byte_stride as usize) as usize;
-
-            let vertex_pos: &[u8] = &vertex_positions[current_byte_offs..((current_byte_offs + byte_stride as usize))];
-            let normal_pos: &[u8] = &normal_positions[current_byte_offs..((current_byte_offs + byte_stride as usize))];
-
-            my_experiment.extend(vertex_pos.iter().cloned());
-            my_experiment.extend(normal_pos.iter().cloned());
-        }
-
-        //let combined_normals_buffer = Some(create_buffer::<u8>(BufferType::Vertex, Usage::GpuReadWrite, CpuAccess::None, &my_experiment));
-
-        let converted_vertex_normals = gltf::GLTF::decode_binary_to_vector3(&normal_positions);
-        let converted_normal_positions = gltf::GLTF::decode_binary_to_vector3(&vertex_positions);
-
-        let the_final = gltf::GLTF::decode_binary_to_vector3(&my_experiment);
 
         let mut the_finals: Vec<beagle_math::Vector3> = vec!();
 
@@ -254,7 +239,7 @@ fn main() {
                 It's also important to note that Blender will export SPLIT vertex normals, that is, it will not output a single weighted normal for each vertex, but instead
                 each vertex will have the same amount of vertex normals as there is adjacent surfaces to that vertex. So you get one surface direction for each surface the vertex is used to represent.
         */
-        for (i, vert_pos) in converted_vertex_normals.iter().enumerate() {
+        for (i, vert_pos) in the_vertex_normals.iter().enumerate() {
             let vert_normal_directions = beagle_math::Vector3::new(vert_pos.x, vert_pos.y, vert_pos.z);
 
             // TODO: Important learning
@@ -263,11 +248,11 @@ fn main() {
             let scaled = vert_normal_directions.mul(0.2 / vert_normal_directions.length());
 
             let the_other = beagle_math::Vector3::new(
-                converted_normal_positions[i].x + scaled.x,
-                converted_normal_positions[i].y + scaled.y,
-                converted_normal_positions[i].z + scaled.z);
+                expanded_vertex_buffer[i].x + scaled.x,
+                expanded_vertex_buffer[i].y + scaled.y,
+                expanded_vertex_buffer[i].z + scaled.z);
 
-            the_finals.push(beagle_math::Vector3::new(converted_normal_positions[i].x, converted_normal_positions[i].y, converted_normal_positions[i].z));
+            the_finals.push(beagle_math::Vector3::new(expanded_vertex_buffer[i].x, expanded_vertex_buffer[i].y, expanded_vertex_buffer[i].z));
             the_finals.push(beagle_math::Vector3::new(
                 the_other.x,
                 the_other.y,
@@ -283,9 +268,9 @@ fn main() {
         ];
 
         let strides = [
-            (mem::size_of::<f32>() * 3) as u32, // Size in bytes of each element that are to be used
-            (mem::size_of::<u16>() * 4) as u32, // Color Buffer Strides
-            (mem::size_of::<f32>() * 3) as u32 // Vertex Normals Strides
+            (mem::size_of::<beagle_math::Vector3>()) as u32, // Size in bytes of each element that are to be used
+            (mem::size_of::<beagle_math::Vector4>()) as u32, // Color Buffer Strides
+            (mem::size_of::<beagle_math::Vector3>()) as u32 // Vertex Normals Strides
         ];
 
         let offsets = [
@@ -302,20 +287,22 @@ fn main() {
             offsets.as_ptr());
 
         // INDEX BUFFER
+        /*
         let mut index_buffer_description = D3D11_BUFFER_DESC::default();
-        index_buffer_description.ByteWidth = (mem::size_of::<u8>() * primitive.vertex_indices.buffer_data.len()) as u32;
+        index_buffer_description.ByteWidth = (mem::size_of::<u16>() * decoded_index_buffer.len()) as u32;
         index_buffer_description.Usage = D3D11_USAGE_DEFAULT;
         index_buffer_description.BindFlags = D3D11_BIND_INDEX_BUFFER;
 
         let mut index_buffer_data = D3D11_SUBRESOURCE_DATA::default();
-        index_buffer_data.pSysMem = primitive.vertex_indices.buffer_data.as_ptr() as *mut c_void;
+        index_buffer_data.pSysMem = decoded_index_buffer.as_ptr() as *mut c_void;
 
         let index_buffer = match dx_device.CreateBuffer(&index_buffer_description, &index_buffer_data) {
             Ok(id) => Some(id),
             Err(err) => panic!("Failed to create index buffer: {}", err)
         };
+         */
 
-        dx_device_context.IASetIndexBuffer(&index_buffer, DXGI_FORMAT_R16_UINT, 0);
+        //dx_device_context.IASetIndexBuffer(&index_buffer, DXGI_FORMAT_R16_UINT, 0);
 
         let path_to_vertex_shader = current_executable_path.parent().unwrap().join("resources\\shaders\\shaders\\compiled-vertex.shader");
 
@@ -339,7 +326,7 @@ fn main() {
             D3D11_INPUT_ELEMENT_DESC {
                 SemanticName: PSTR(semantic_name_color.as_ptr() as *mut u8),
                 SemanticIndex: 0,
-                Format: DXGI_FORMAT_R16G16B16A16_UNORM,
+                Format: DXGI_FORMAT_R32G32B32A32_FLOAT,
                 InputSlot: 1,
                 AlignedByteOffset: D3D11_APPEND_ALIGNED_ELEMENT,
                 InputSlotClass: D3D11_INPUT_PER_VERTEX_DATA,
@@ -401,7 +388,8 @@ fn main() {
         let mut rasterizer_description = D3D11_RASTERIZER_DESC::default();
         //rasterizer_description.FillMode = D3D11_FILL_WIREFRAME;
         rasterizer_description.FillMode = D3D11_FILL_SOLID;
-        rasterizer_description.CullMode = D3D11_CULL_NONE;
+        //  rasterizer_description.CullMode = D3D11_CULL_NONE;
+        rasterizer_description.CullMode = D3D11_CULL_BACK;
         rasterizer_description.FrontCounterClockwise = BOOL(0);
         rasterizer_description.ScissorEnable = BOOL(0);
         rasterizer_description.DepthClipEnable = BOOL(1);
@@ -599,13 +587,13 @@ fn main() {
                     1,
                     &combined_normals_buffer,
                     [
-                        (mem::size_of::<f32>() * 3) as u32
+                        (mem::size_of::<beagle_math::Vector3>()) as u32
                     ].as_ptr(),
                     [
                         0
                     ].as_ptr());
 
-                dx_device_context.Draw(240, 0);
+                dx_device_context.Draw((the_finals.len()) as u32, 0);
 
                 // RENDER ENTITY
                 // We must tell the IA stage how to assemble the vertices into primitives.
@@ -614,7 +602,7 @@ fn main() {
                 dx_device_context.VSSetShader(&vertex_shader, ptr::null(), 0);
                 dx_device_context.IASetInputLayout(&input_layout_object);
                 dx_device_context.VSSetConstantBuffers(0, 1, &mut vertex_constant_buffer);
-                dx_device_context.IASetIndexBuffer(&index_buffer, DXGI_FORMAT_R16_UINT, 0);
+                //dx_device_context.IASetIndexBuffer(&index_buffer, DXGI_FORMAT_R16_UINT, 0);
                 dx_device_context.IASetVertexBuffers(
                     0,
                     3,
@@ -622,7 +610,8 @@ fn main() {
                     strides.as_ptr(),
                     offsets.as_ptr());
 
-                dx_device_context.DrawIndexed(primitive.vertex_indices.element_count, 0, 0);
+                //dx_device_context.DrawIndexed(primitive.vertex_indices.element_count, 0, 0);
+                dx_device_context.Draw(expanded_vertex_buffer.len() as u32, 0);
 
                 if swap_chain.Present(1, 0).is_err() {
                     panic!("Failed to present!");

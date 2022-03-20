@@ -1,4 +1,4 @@
-use std::fs;
+use std::{fs, ops::Div};
 use std::path::PathBuf;
 use serde::{Serialize, Deserialize};
 use std::cell::{RefCell, Ref};
@@ -28,10 +28,98 @@ pub struct GLTF {
     buffers: Vec<Buffer>
 }
 
+pub trait BinaryDecode {
+    fn decode_binary(bytes: &[u8]) -> Self;
+}
+
+impl BinaryDecode for u16 {
+    fn decode_binary(bytes: &[u8]) -> Self {
+        LittleEndian::read_u16(bytes)
+    }
+}
+
+pub trait Max {
+    fn max() -> f32;
+}
+
+impl Max for u16 {
+    fn max() -> f32 {
+        u16::MAX as f32
+    }
+}
+
 impl GLTF {
     pub fn new(gltf_path: PathBuf) -> GLTF {
         let gltf_file_content = fs::read_to_string(gltf_path).unwrap();
         serde_json::from_str(&gltf_file_content).unwrap()
+    }
+
+    /*
+        This method assumes a list of vertices, with 3 vertices making up a triangle.
+        Each 3 vertice making up one triangle will get the same vertex normal, representing perpedicularity to the same surface.
+
+        Trying out this technique: https://computergraphics.stackexchange.com/questions/4031/programmatically-generating-vertex-normals
+    */
+    pub fn calculate_vertex_normals(vertex_positions: &Vec<beagle_math::Vector3>) -> Vec<beagle_math::Vector3> {
+        if vertex_positions.len() % 3 != 0 {
+            panic!("The list of vertex positions is not divisible by 3, which is required as this method assumes a primitive topology of triangles.")
+        }
+
+        let mut vertex_normals: Vec<beagle_math::Vector3> = vec!();
+
+        for vertex_position_index in (0..vertex_positions.len()).step_by(3) {
+            let vert1 = vertex_positions[vertex_position_index];
+            let vert2 = vertex_positions[vertex_position_index + 1];
+            let vert3 = vertex_positions[vertex_position_index + 2];
+
+            let edge1 = beagle_math::Vector3::new(
+                vert2.x - vert1.x,
+                vert2.y - vert1.y,
+                vert2.z - vert1.z,
+            );
+
+            let edge2 = beagle_math::Vector3::new(
+                vert3.x - vert1.x,
+                vert3.y - vert1.y,
+                vert3.z - vert1.z,
+            );
+
+            let vertex_normal = edge1.cross(&edge2).normalized();
+
+            vertex_normals.push(vertex_normal);
+            vertex_normals.push(vertex_normal);
+            vertex_normals.push(vertex_normal);
+        }
+
+        vertex_normals
+    }
+
+    pub fn expand_by_indices<T: Copy>(indices: &Vec<u16>, buffer_to_expand: &Vec<T>) -> Vec<T> {
+        let mut the_result: Vec<T> = vec!();
+
+        for i in indices {
+            let corresponding_vertex_position = buffer_to_expand[(*i) as usize];
+            the_result.push(corresponding_vertex_position);
+        }
+
+        the_result
+    }
+
+    pub fn decode_binary_to_scalar(binary_scalar_data: &[u8]) -> Vec<u16> {
+        let size_of_u16_in_bytes = size_of::<u16>();
+
+        if binary_scalar_data.len() % size_of_u16_in_bytes != 0 {
+            panic!("Binary scalar data is not divisible by size of unsigned short in bytes, which is {}", size_of_u16_in_bytes);
+        }
+
+        let mut result: Vec<u16> = vec!();
+
+        for i in (0..(binary_scalar_data.len())).step_by(size_of_u16_in_bytes) {
+            let the_scalar = LittleEndian::read_u16(&binary_scalar_data[i..(i + size_of_u16_in_bytes)]);
+            result.push(the_scalar);
+        }
+
+        result
     }
 
     pub fn decode_binary_to_vector3(binary_vector_data: &[u8]) -> Vec<beagle_math::Vector3> {
@@ -55,6 +143,39 @@ impl GLTF {
             }
 
             result.push(beagle_math::Vector3::new(vector_elements[0], vector_elements[1], vector_elements[2]));
+        }
+ 
+        result
+    }
+
+    pub fn decode_binary_to_vector4<T: BinaryDecode + Into<f32> + Copy + Max>(binary_vector_data: &[u8]) -> Vec<beagle_math::Vector4> {
+        let size_of_type = size_of::<T>();
+        let size_of_vector_in_bytes = size_of_type * 4;
+
+        if binary_vector_data.len() % size_of_vector_in_bytes != 0 {
+            panic!("Binary vector data is not divisible by size of a vector in bytes, which is {}", size_of_vector_in_bytes);
+        }
+
+        let mut result: Vec<beagle_math::Vector4> = vec!();
+
+        for i in (0..(binary_vector_data.len())).step_by(size_of_vector_in_bytes) {
+            let mut vector_elements: Vec<T> = vec!();
+
+            for x in (0..size_of_vector_in_bytes).step_by(size_of_type) {
+                let mut slice_start_offset = i + x;
+                let mut slice_end_offset = slice_start_offset + size_of_type;
+
+                let decoded = T::decode_binary(&binary_vector_data[slice_start_offset..slice_end_offset]);
+
+                vector_elements.push(decoded);
+            }
+
+            let x: f32 = T::into(vector_elements[0]) / T::max();
+            let y: f32 = T::into(vector_elements[1]) / T::max();
+            let z: f32 = T::into(vector_elements[2]) / T::max();
+            let w: f32 = T::into(vector_elements[3]) / T::max();
+
+            result.push(beagle_math::Vector4::new(x, y, z, w));
         }
  
         result
@@ -135,6 +256,9 @@ struct Accessor {
     component_type: u32,
     // Count is the number of elements in the buffer
     count: u32,
+    // The normalized bool indicates whether the value has to be normalized before use.
+    // That is, if the integer value has to be divided by its types MAX value before being used, in order to give a number between
+    // [0, 1] for unsigned integer types, and [-1, 1] for signed integer types.
     #[serde(default)]
     normalized: bool,
     // The type of element that components are described as.
