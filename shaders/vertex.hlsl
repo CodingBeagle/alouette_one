@@ -10,8 +10,8 @@ cbuffer cbPerObject : register(b0)
 struct VSIn
 {
     float3 PosL : POSITION;
-    float4 Color : COLOR0;
-    float3 Normal : NORMAL0;
+    float4 Color : COLOR;
+    float3 Normal : NORMAL;
 };
 
 struct VSOut
@@ -63,6 +63,8 @@ VSOut VS(VSIn input)
     float3 diffuse_calculation = light_diffuse_color * material_diffuse_color;
     float3 ambient_calculation = light_ambient_color * material_ambient_color;
 
+    // It's important to note that the term of ambient color has NO physical simulations attached to it.
+    // Meaning, the ambient color disregards any direction to the light source, because it's meant to simulate
     float3 lit_color = ambient_calculation + float3(
         diffuse_calculation.x * lamberts_multiplier, 
         diffuse_calculation.y * lamberts_multiplier, 

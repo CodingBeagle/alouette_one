@@ -15,6 +15,7 @@ pub enum Key {
     LeftArrow,
     RightArrow,
     A,
+    C,
     D,
     W,
     S,
@@ -42,6 +43,9 @@ pub fn map_to_key(virtual_key_code: i32) -> Key {
         },
         0x41 => {
             Key::A
+        },
+        0x43 => {
+            Key::C
         },
         0x44 => {
             Key::D

@@ -102,7 +102,7 @@ fn main() {
         // The issue is that the IDXGIFactory required is the one which was implicitly used
         // to create the device when calling D3D11CreateDevice, so some calls will have to
         // be made to retrieve that factory.
-        let idxgi_device : IDXGIDevice = dx_device .cast().unwrap();
+        let idxgi_device : IDXGIDevice = dx_device.cast().unwrap();
         let idxgi_adapter = idxgi_device.GetAdapter().unwrap();
         let idxgi_factory : IDXGIFactory = idxgi_adapter.GetParent().unwrap();
 
@@ -224,7 +224,7 @@ fn main() {
         // VERTEX NORMAL BUFFER
         let the_vertex_normals = gltf::GLTF::calculate_vertex_normals(&expanded_vertex_buffer);
         let normals_buffer = Some(create_buffer::<beagle_math::Vector3>(BufferType::Vertex, Usage::GpuReadWrite, CpuAccess::None, &the_vertex_normals));
-
+        
         // WEAVING MAGIC
         let mut the_finals: Vec<beagle_math::Vector3> = vec!();
 
@@ -312,13 +312,18 @@ fn main() {
         let semantic_name_color = CString::new("COLOR").unwrap();
         let semantic_name_normal = CString::new("NORMAL").unwrap();
 
+        // NOTICE that I am specifying an "Input Slot" for each input element.
+        // This is because I am currently using three seperate vertex buffers. One for position, one for color, one for vertex normals.
+        // The input slot specifies the index of the vertex array I use for that specific vertex shader parameter.
+        // Notice also that the "AlignedByteOffset" is zero, as each elemenent has their own vertex buffer.
+        // TODO: You get better performance from interweaved data... so I should probably do that at some point.
         let input_element_descriptions = [
             D3D11_INPUT_ELEMENT_DESC {
                 SemanticName: PSTR(semantic_name_position.as_ptr() as *mut u8),
                 SemanticIndex: 0,
                 Format: DXGI_FORMAT_R32G32B32_FLOAT,
                 InputSlot: 0,
-                AlignedByteOffset: D3D11_APPEND_ALIGNED_ELEMENT,
+                AlignedByteOffset: 0,
                 InputSlotClass: D3D11_INPUT_PER_VERTEX_DATA,
                 InstanceDataStepRate: 0
             },
@@ -327,7 +332,7 @@ fn main() {
                 SemanticIndex: 0,
                 Format: DXGI_FORMAT_R32G32B32A32_FLOAT,
                 InputSlot: 1,
-                AlignedByteOffset: D3D11_APPEND_ALIGNED_ELEMENT,
+                AlignedByteOffset: 0,
                 InputSlotClass: D3D11_INPUT_PER_VERTEX_DATA,
                 InstanceDataStepRate: 0
             },
@@ -335,8 +340,8 @@ fn main() {
                 SemanticName: PSTR(semantic_name_normal.as_ptr() as *mut u8),
                 SemanticIndex: 0,
                 Format: DXGI_FORMAT_R32G32B32_FLOAT,
-                InputSlot: 0,
-                AlignedByteOffset: D3D11_APPEND_ALIGNED_ELEMENT,
+                InputSlot: 2,
+                AlignedByteOffset: 0,
                 InputSlotClass: D3D11_INPUT_PER_VERTEX_DATA,
                 InstanceDataStepRate: 0
             }
@@ -460,6 +465,8 @@ fn main() {
         let mut drone_camera = camera::FreeFlight::default();
         let mut fps_camera = camera::Fps::default();
 
+        let mut object_position = beagle_math::Vector3::default();
+
         while !should_quit {
             // PROCESS INPUT
             // PeekMessage will retrieve messages associated with the main window and the thread.
@@ -522,7 +529,7 @@ fn main() {
                     should_quit = true;
                 }
 
-                if window_helper.is_key_pressed(window::Key::UpArrow) {
+                if window_helper.is_key_pressed(window::Key::C) {
                     drone_camera.reset_orientation();
                 }
                 
@@ -552,7 +559,7 @@ fn main() {
 
                 let view_matrix = drone_camera.view_matrix();
 
-                let model_matrix = beagle_math::Mat4::uniform_scale(5.0);
+                let model_matrix = beagle_math::Mat4::translate(&object_position).mul(&beagle_math::Mat4::uniform_scale(5.0));
 
                 // OBJECT -> WORLD -> VIEW -> PROJECTION
                 // MY MATH LIBRARY CURRENTLY USES ROW-MAJOR CONVENTION, THIS MEANS THAT YOUR TYPICAL P * V * TRSv order becomes v(SRT) * VIEW * PROJECTION

@@ -105,6 +105,7 @@ impl Vector3 {
     }
 }
 
+#[repr(C)]
 #[derive(Default, Clone, Copy)]
 pub struct Vector4 {
     pub x: f32,
