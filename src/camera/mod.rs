@@ -64,6 +64,10 @@ pub struct FreeFlight {
 }
 
 impl FreeFlight {
+    pub fn reset_orientation(&mut self) {
+        self.current_view_matrix = beagle_math::Mat4::identity();
+    }
+
     pub fn apply_move(&mut self, delta_pitch: f32, delta_yaw: f32, delta_roll: f32, delta_translation: beagle_math::Vector3) {
             self.delta_pitch = delta_pitch;
             self.delta_yaw = delta_yaw;

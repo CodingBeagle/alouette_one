@@ -199,7 +199,7 @@ fn main() {
         // TODO: Exercise - Enumerate through the available outputs (monitors) for an adapter. Use IDXGIAdapter::EnumOutputs.
         // TODO: Exercise - Each output has a lit of supported display modes. For each of them, list width, height, refresh rate, pixel format, etc...
 
-        let path_to_mesh = current_executable_path.parent().unwrap().join("resources\\purple_box.gltf");
+        let path_to_mesh = current_executable_path.parent().unwrap().join("resources\\colored_sphere\\colored_sphere.gltf");
 
         let gltf = gltf::GLTF::new(path_to_mesh);
 
@@ -226,7 +226,6 @@ fn main() {
         let normals_buffer = Some(create_buffer::<beagle_math::Vector3>(BufferType::Vertex, Usage::GpuReadWrite, CpuAccess::None, &the_vertex_normals));
 
         // WEAVING MAGIC
-
         let mut the_finals: Vec<beagle_math::Vector3> = vec!();
 
         /*
@@ -259,7 +258,7 @@ fn main() {
                 the_other.z));
         }
 
-        let combined_normals_buffer = Some(create_buffer::<beagle_math::Vector3>(BufferType::Vertex, Usage::GpuReadWrite, CpuAccess::None, &the_finals));
+        let normals_buffer_for_rendering = Some(create_buffer::<beagle_math::Vector3>(BufferType::Vertex, Usage::GpuReadWrite, CpuAccess::None, &the_finals));
 
         let holy_moly = [
             vertex_buffer.clone(),
@@ -522,6 +521,10 @@ fn main() {
                 if window_helper.is_key_pressed(window::Key::Escape) {
                     should_quit = true;
                 }
+
+                if window_helper.is_key_pressed(window::Key::UpArrow) {
+                    drone_camera.reset_orientation();
+                }
                 
                 window_helper.update();
 
@@ -585,7 +588,7 @@ fn main() {
                 dx_device_context.IASetVertexBuffers(
                     0,
                     1,
-                    &combined_normals_buffer,
+                    &normals_buffer_for_rendering,
                     [
                         (mem::size_of::<beagle_math::Vector3>()) as u32
                     ].as_ptr(),
