@@ -5,6 +5,8 @@
 cbuffer cbPerObject : register(b0)
 {
     float4x4 worldViewProjection;
+    float4x4 modelMatrix;
+    float4 cameraPosition;
 };
 
 struct VSIn
@@ -62,13 +64,44 @@ VSOut VS(VSIn input)
     float lamberts_multiplier = max(dot(sun_light_direction, input.Normal), 0.0f);
     float3 diffuse_calculation = light_diffuse_color * material_diffuse_color;
     float3 ambient_calculation = light_ambient_color * material_ambient_color;
+    
+    // ** Specular Light **
+    float3 specular_light_color = float3(1.0, 1.0, 1.0);
+    float3 specular_material_color = float3(0.5, 0.5, 0.5);
+
+    // A larger shiniess parameter will simulate more polished surfaces with smaller
+    // cone of reflectance.
+    // However, at a minimum, the parameter should always be 1 or greater.
+    // Setting it to zero will simulate an object which receives no reflection / specular light
+    float shininess_parameter = 1.0;
+
+    // Right now I pass in a 4D vector for camera position in order to adhere to the 16 multiple requirement
+    // of the vertex shader constants. I need to figure out a cleaner way of doing this, perhaps...
+    float3 camera_position_truncated = float3(cameraPosition.x, cameraPosition.y, cameraPosition.z);
+    float4 surface_point_in_world_coordinates = mul(float4(input.PosL, 1.0f), modelMatrix);
+
+    float3 view_vector = normalize(camera_position_truncated - surface_point_in_world_coordinates.xyz);
+    float3 reflection_vector = reflect(float3(0.0f, -1.0f, 0.0f), input.Normal);
+    float3 specular_calculation = specular_light_color * specular_material_color;
+    float specular_factor = pow(max(dot(reflection_vector, view_vector), 0.0f), shininess_parameter);
+
+    if (lamberts_multiplier <= 0.0f)
+    {
+        specular_factor = 0.0f;
+    }
 
     // It's important to note that the term of ambient color has NO physical simulations attached to it.
     // Meaning, the ambient color disregards any direction to the light source, because it's meant to simulate
-    float3 lit_color = ambient_calculation + float3(
-        diffuse_calculation.x * lamberts_multiplier, 
-        diffuse_calculation.y * lamberts_multiplier, 
-        diffuse_calculation.z * lamberts_multiplier);
+    float3 lit_color = ambient_calculation + 
+        float3(
+            diffuse_calculation.x * lamberts_multiplier, 
+            diffuse_calculation.y * lamberts_multiplier, 
+            diffuse_calculation.z * lamberts_multiplier) +
+        float3(
+            specular_calculation.x * specular_factor,
+            specular_calculation.y * specular_factor,
+            specular_calculation.z * specular_factor
+        );
 
     output.Color = float4(lit_color, 1.0);
 

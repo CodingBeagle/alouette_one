@@ -23,8 +23,11 @@ mod dx;
 mod window;
 mod camera;
 
+// Remember, constant buffers byte width must be multiple of 16
 struct VertexConstantBuffer {
-    worldViewProjection: beagle_math::Mat4
+    worldViewProjection: beagle_math::Mat4,
+    modelMatrix: beagle_math::Mat4,
+    cameraPosition: beagle_math::Vector4
 }
 
 fn main() {
@@ -440,7 +443,9 @@ fn main() {
         vertex_constant_buffer_description.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
 
         let mut world_view_projection_matrix = VertexConstantBuffer {
-            worldViewProjection: beagle_math::Mat4::projection((45.0f32).to_radians(), window::WINDOW_WIDTH as f32, window::WINDOW_HEIGHT as f32, 0.1, 100.0)
+            worldViewProjection: beagle_math::Mat4::projection((45.0f32).to_radians(), window::WINDOW_WIDTH as f32, window::WINDOW_HEIGHT as f32, 0.1, 100.0),
+            modelMatrix: beagle_math::Mat4::identity(),
+            cameraPosition: beagle_math::Vector4::default()
         };
 
         world_view_projection_matrix.worldViewProjection.tranpose();
@@ -555,7 +560,7 @@ fn main() {
                     panic!("Failed to retrieve mapped resource for world matrix!");
                 }
 
-                let rofl = mapped_resource.unwrap().pData as *mut VertexConstantBuffer;
+                let vertex_constant_buffer_mapped_resource = mapped_resource.unwrap().pData as *mut VertexConstantBuffer;
 
                 let view_matrix = drone_camera.view_matrix();
 
@@ -565,13 +570,21 @@ fn main() {
                 // MY MATH LIBRARY CURRENTLY USES ROW-MAJOR CONVENTION, THIS MEANS THAT YOUR TYPICAL P * V * TRSv order becomes v(SRT) * VIEW * PROJECTION
                 // THIS MEANS THAT INSTEAD OF READING RIGHT TO LEFT IN ORDER TO UNDERSTAND THE ORDER OF TRANSFORMS A VERTICE GOES THROUGH
                 // I HAVE TO READ FROM LEFT TO RIGHT.
-                (*rofl).worldViewProjection = model_matrix.mul(&view_matrix.mul(&beagle_math::Mat4::projection((60.0f32).to_radians(), window::WINDOW_WIDTH as f32, window::WINDOW_HEIGHT as f32, 0.1, 5000.0)));
+                (*vertex_constant_buffer_mapped_resource).worldViewProjection = model_matrix.mul(&view_matrix.mul(&beagle_math::Mat4::projection((60.0f32).to_radians(), window::WINDOW_WIDTH as f32, window::WINDOW_HEIGHT as f32, 0.1, 5000.0)));
                 
                 // My matrices are all designed for being multipled with a ROW vector.
                 // Also, I store my matrices in row-major order in memory.
                 // By default, HLSL will both READ and PACK matrices in column-major. 
                 // So I transpose my matrix so that it will be read correctly as a ROW MAJOR matrix on the shader side.
-                (*rofl).worldViewProjection.tranpose();
+                (*vertex_constant_buffer_mapped_resource).worldViewProjection.tranpose();
+
+                let drone_position = drone_camera.get_position();
+                (*vertex_constant_buffer_mapped_resource).cameraPosition = beagle_math::Vector4::new(drone_position.x, drone_position.y, drone_position.z, 0.0);
+
+                //println!("{:?}", (*vertex_constant_buffer_mapped_resource).cameraPosition);
+
+                (*vertex_constant_buffer_mapped_resource).modelMatrix = model_matrix;
+                (*vertex_constant_buffer_mapped_resource).modelMatrix.tranpose();
 
                 // After we're done mapping new data, we have to call Unmap in order to invalidate the pointer to the buffer
                 // And reenable the GPU's access to that resource
@@ -590,7 +603,7 @@ fn main() {
                 dx_device_context.IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_LINELIST);
                 dx_device_context.VSSetShader(&vertex_normals_shader, ptr::null(), 0);
                 dx_device_context.IASetInputLayout(&vertex_normals_shader_input_layout);
-                dx_device_context.VSSetConstantBuffers(0, 1, &mut vertex_constant_buffer);
+                //dx_device_context.VSSetConstantBuffers(0, 1, &mut vertex_constant_buffer);
                 dx_device_context.IASetIndexBuffer(None,0, 0);
                 dx_device_context.IASetVertexBuffers(
                     0,
@@ -611,7 +624,7 @@ fn main() {
                 dx_device_context.IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
                 dx_device_context.VSSetShader(&vertex_shader, ptr::null(), 0);
                 dx_device_context.IASetInputLayout(&input_layout_object);
-                dx_device_context.VSSetConstantBuffers(0, 1, &mut vertex_constant_buffer);
+                //dx_device_context.VSSetConstantBuffers(0, 1, &mut vertex_constant_buffer);
                 //dx_device_context.IASetIndexBuffer(&index_buffer, DXGI_FORMAT_R16_UINT, 0);
                 dx_device_context.IASetVertexBuffers(
                     0,

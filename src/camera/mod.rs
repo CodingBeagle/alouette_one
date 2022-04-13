@@ -60,7 +60,8 @@ pub struct FreeFlight {
     delta_yaw: f32,
     delta_roll: f32,
     delta_translate: beagle_math::Vector3,
-    current_view_matrix: beagle_math::Mat4
+    current_view_matrix: beagle_math::Mat4,
+    current_trans: beagle_math::Mat4
 }
 
 impl FreeFlight {
@@ -73,6 +74,17 @@ impl FreeFlight {
             self.delta_yaw = delta_yaw;
             self.delta_roll = delta_roll;
             self.delta_translate = delta_translation;
+    }
+
+    pub fn get_position(&self) -> beagle_math::Vector3 {
+        let x = self.current_view_matrix.get(0, 3);
+        let y = self.current_view_matrix.get(1, 3);
+        let z = self.current_view_matrix.get(2, 3);
+
+        let v = beagle_math::Vector4::new(x, y, z, 1.0);
+        let loc = beagle_math::Mat4::parent_to_local(&beagle_math::Vector3::new(v.x, v.y, v.z), &self.current_view_matrix);
+
+        beagle_math::Vector3::new(loc.get(0, 3), loc.get(1, 3), loc.get(2, 3))
     }
 
     pub fn view_matrix(&mut self) -> beagle_math::Mat4 {
@@ -91,8 +103,10 @@ impl FreeFlight {
         let rotation = yaw.cross(&pitch).cross(&roll).to_matrix().get_transposed();
         let translation_matrix = beagle_math::Mat4::translate(&self.delta_translate.mul(-1.0));
 
-        self.current_view_matrix = self.current_view_matrix.mul(&(translation_matrix.mul(&rotation)));
+        self.current_trans = self.current_trans.mul(&translation_matrix);
 
+        self.current_view_matrix = self.current_view_matrix.mul(&(translation_matrix.mul(&rotation)));
+        
         beagle_math::Mat4::new(self.current_view_matrix.matrix)
     }
 }
