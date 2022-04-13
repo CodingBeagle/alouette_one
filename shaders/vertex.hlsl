@@ -73,7 +73,7 @@ VSOut VS(VSIn input)
     // cone of reflectance.
     // However, at a minimum, the parameter should always be 1 or greater.
     // Setting it to zero will simulate an object which receives no reflection / specular light
-    float shininess_parameter = 1.0;
+    float shininess_parameter = 5.0;
 
     // Right now I pass in a 4D vector for camera position in order to adhere to the 16 multiple requirement
     // of the vertex shader constants. I need to figure out a cleaner way of doing this, perhaps...

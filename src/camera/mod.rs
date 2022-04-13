@@ -82,9 +82,24 @@ impl FreeFlight {
         let z = self.current_view_matrix.get(2, 3);
 
         let v = beagle_math::Vector4::new(x, y, z, 1.0);
+
+        /*
+            Here I take the translation part of the current view matrix, which expresses the displacement, in world coordinates, that all objects in the scene
+            should displace by RELATIVE TO THE CAMERA AS ORIGIN, in order to simulate the current orientation of the FreeFlight camera. 
+
+            I then take that world coordinate displacement, and convert it into a displacement relative to the coordinate space of the current view, that is,
+            with the current view matrix as the origin.
+
+            The resulting position is essentially the absolute world position of the FreeFlight camera.
+
+            I need an absolute position like this when calculating things like specular light in the vertex shader, as this requires a position of the eye in world coordinates.
+            And the base self.current_view_matrix stores no such information.
+        */
         let loc = beagle_math::Mat4::parent_to_local(&beagle_math::Vector3::new(v.x, v.y, v.z), &self.current_view_matrix);
 
-        beagle_math::Vector3::new(loc.get(0, 3), loc.get(1, 3), loc.get(2, 3))
+        let res = beagle_math::Vector3::new(loc.get(0, 3), loc.get(1, 3), loc.get(2, 3));
+
+        res
     }
 
     pub fn view_matrix(&mut self) -> beagle_math::Mat4 {
@@ -106,6 +121,8 @@ impl FreeFlight {
         self.current_trans = self.current_trans.mul(&translation_matrix);
 
         self.current_view_matrix = self.current_view_matrix.mul(&(translation_matrix.mul(&rotation)));
+
+        println!("{:?}", self.current_view_matrix);
         
         beagle_math::Mat4::new(self.current_view_matrix.matrix)
     }
