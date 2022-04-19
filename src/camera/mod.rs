@@ -121,8 +121,6 @@ impl FreeFlight {
         self.current_trans = self.current_trans.mul(&translation_matrix);
 
         self.current_view_matrix = self.current_view_matrix.mul(&(translation_matrix.mul(&rotation)));
-
-        println!("{:?}", self.current_view_matrix);
         
         beagle_math::Mat4::new(self.current_view_matrix.matrix)
     }

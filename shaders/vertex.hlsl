@@ -7,6 +7,9 @@ cbuffer cbPerObject : register(b0)
     float4x4 worldViewProjection;
     float4x4 modelMatrix;
     float4 cameraPosition;
+    float4 diffuseColor;
+    float4 ambientColor;
+    float4 specularColor;
 };
 
 struct VSIn
@@ -41,13 +44,6 @@ VSOut VS(VSIn input)
     float3 sun_light_direction = { 0.0f, 1.0f, 0.0f };
 
     // ** Material parameters **
-    
-    // I want the diffuse color to be red.
-    // I do this by describing that it reflects 100% red light, and completely absorbs green and blue.
-    float3 material_diffuse_color = { 1.0, 0.0, 0.0 };
-
-    // The object should reflect 100% of ambient light color
-    float3 material_ambient_color = { 0.15, 0.15, 0.15 };
 
     // ** Light Parameters **
 
@@ -62,12 +58,11 @@ VSOut VS(VSIn input)
     // angle to the incoming light direction
     // We use "max", an intrinsic HLSL function which selects whichever of x and y that are the largest
     float lamberts_multiplier = max(dot(sun_light_direction, input.Normal), 0.0f);
-    float3 diffuse_calculation = light_diffuse_color * material_diffuse_color;
-    float3 ambient_calculation = light_ambient_color * material_ambient_color;
+    float3 diffuse_calculation = light_diffuse_color * diffuseColor.xyz;
+    float3 ambient_calculation = light_ambient_color * ambientColor.xyz;
     
     // ** Specular Light **
     float3 specular_light_color = float3(1.0, 1.0, 1.0);
-    float3 specular_material_color = float3(0.5, 0.5, 0.5);
 
     // A larger shiniess parameter will simulate more polished surfaces with smaller
     // cone of reflectance.
@@ -82,7 +77,7 @@ VSOut VS(VSIn input)
 
     float3 view_vector = normalize(camera_position_truncated - surface_point_in_world_coordinates.xyz);
     float3 reflection_vector = reflect(float3(0.0f, -1.0f, 0.0f), input.Normal);
-    float3 specular_calculation = specular_light_color * specular_material_color;
+    float3 specular_calculation = specular_light_color * specularColor.xyz;
     float specular_factor = pow(max(dot(reflection_vector, view_vector), 0.0f), shininess_parameter);
 
     if (lamberts_multiplier <= 0.0f)

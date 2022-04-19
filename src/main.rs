@@ -7,7 +7,7 @@ use windows::{
         Graphics::Direct3D11::*,
         Graphics::Dxgi::*,
         Graphics::Dxgi::Common::*,
-    }, core::{Interface, DefaultType}  
+    }, core::{Interface}  
 };
 
 use std::{mem::{size_of, self}, os::windows::prelude::OsStrExt, env, fs, ops::Mul};
@@ -27,7 +27,10 @@ mod camera;
 struct VertexConstantBuffer {
     worldViewProjection: beagle_math::Mat4,
     modelMatrix: beagle_math::Mat4,
-    cameraPosition: beagle_math::Vector4
+    cameraPosition: beagle_math::Vector4,
+    diffuseColor: beagle_math::Vector4,
+    ambientColor: beagle_math::Vector4,
+    specularColor: beagle_math::Vector4,
 }
 
 fn main() {
@@ -445,7 +448,10 @@ fn main() {
         let mut world_view_projection_matrix = VertexConstantBuffer {
             worldViewProjection: beagle_math::Mat4::projection((45.0f32).to_radians(), window::WINDOW_WIDTH as f32, window::WINDOW_HEIGHT as f32, 0.1, 100.0),
             modelMatrix: beagle_math::Mat4::identity(),
-            cameraPosition: beagle_math::Vector4::default()
+            cameraPosition: beagle_math::Vector4::default(),
+            diffuseColor: beagle_math::Vector4::new(1.0, 0.0, 0.0, 0.0),
+            ambientColor: beagle_math::Vector4::new(0.15, 0.15, 0.15, 0.0),
+            specularColor: beagle_math::Vector4::new(0.5, 0.5, 0.5, 0.0)
         };
 
         world_view_projection_matrix.worldViewProjection.tranpose();
@@ -585,6 +591,10 @@ fn main() {
 
                 (*vertex_constant_buffer_mapped_resource).modelMatrix = model_matrix;
                 (*vertex_constant_buffer_mapped_resource).modelMatrix.tranpose();
+
+                (*vertex_constant_buffer_mapped_resource).diffuseColor = beagle_math::Vector4::new(1.0, 0.0, 0.0, 0.0);
+                (*vertex_constant_buffer_mapped_resource).ambientColor = beagle_math::Vector4::new(0.15, 0.15, 0.15, 0.0);
+                (*vertex_constant_buffer_mapped_resource).specularColor = beagle_math::Vector4::new(0.5, 0.5, 0.5, 0.0);
 
                 // After we're done mapping new data, we have to call Unmap in order to invalidate the pointer to the buffer
                 // And reenable the GPU's access to that resource
