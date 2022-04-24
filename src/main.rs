@@ -18,6 +18,7 @@ use core::iter::*;
 
 // OWN MODULES
 mod gltf;
+mod gltf2;
 mod beagle_math;
 mod dx;
 mod window;
@@ -202,11 +203,22 @@ fn main() {
         dx_device_context.OMSetRenderTargets(
             1, &back_buffer_render_target_view, &depth_buffer_view);
 
+        // GLTF2 Testing
+        let path_to_mill = current_executable_path.parent().unwrap().join("resources\\mill\\mill.gltf");
+
+        let gltf_file = match gltf2::File::from(path_to_mill) {
+            Ok(gltf_file) => gltf_file,
+            Err(err) => panic!("{}", err)
+        };
+
+        for node in gltf_file.nodes {
+            println!("Node Name: {}", node.name);
+        }
+
         // TODO: Exercise - Enumerate through the available outputs (monitors) for an adapter. Use IDXGIAdapter::EnumOutputs.
         // TODO: Exercise - Each output has a lit of supported display modes. For each of them, list width, height, refresh rate, pixel format, etc...
 
-        let path_to_mesh = current_executable_path.parent().unwrap().join("resources\\colored_sphere\\colored_sphere.gltf");
-
+        let path_to_mesh = current_executable_path.parent().unwrap().join("resources\\mill\\mill.gltf");
         let gltf = gltf::GLTF::new(path_to_mesh);
 
         let meshes = gltf.load_meshes();
@@ -438,7 +450,7 @@ fn main() {
         // So, if you want to change the content of a D3D11_USAGE_DYNAMIC buffer, use the Map method instead.
         vertex_constant_buffer_description.Usage = D3D11_USAGE_DYNAMIC;
 
-        // We indicate that the buffer should be a constant buffer. These can be used to supply
+        // We indicate that the buffer should be €a constant buffer. These can be used to supply
         // Shader constants to the vertex shader.
         vertex_constant_buffer_description.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
 
