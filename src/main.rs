@@ -19,6 +19,7 @@ use core::iter::*;
 // OWN MODULES
 mod gltf;
 mod gltf2;
+mod asset;
 mod beagle_math;
 mod dx;
 mod window;

@@ -1,5 +1,4 @@
 use std::fs;
-use std::result;
 use std::path::PathBuf;
 
 use serde::{Serialize, Deserialize};
@@ -27,6 +26,7 @@ pub struct File {
 }
 
 impl File {
+    // TODO: Returning an error as a string isn't very clear... perhaps a strong type for it would make the interface more easily understandable?
     pub fn from(file_path: PathBuf) -> Result<File, String> {
         let file_content = match fs::read_to_string(file_path) {
             Ok(file_content) => file_content,
