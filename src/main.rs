@@ -24,6 +24,7 @@ mod beagle_math;
 mod dx;
 mod window;
 mod camera;
+mod shared;
 
 // Remember, constant buffers byte width must be multiple of 16
 struct VertexConstantBuffer {
@@ -212,8 +213,10 @@ fn main() {
             Err(err) => panic!("{}", err)
         };
 
-        for node in gltf_file.nodes {
-            println!("Node Name: {}", node.name);
+        let parsed_gltf_file = asset::mesh::parse_model(&gltf_file);
+
+        for lol in &parsed_gltf_file.meshes {
+            println!("{}", lol.name);
         }
 
         // TODO: Exercise - Enumerate through the available outputs (monitors) for an adapter. Use IDXGIAdapter::EnumOutputs.

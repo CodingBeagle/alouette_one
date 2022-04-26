@@ -76,34 +76,34 @@ pub struct Material {
 #[serde(rename_all = "camelCase")]
 pub struct Mesh {
     #[serde(default)]
-    name: String,
+    pub name: String,
 
-    primitives: Vec<Primitive>
+    pub primitives: Vec<Primitive>
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct Primitive {
-    attributes: Attribute,
+    pub attributes: Attribute,
     
     #[serde(default)]
-    indices: u32
+    pub indices: u32
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
-struct Attribute {
+pub struct Attribute {
     #[serde(default = "default_attribute_value", rename = "POSITION")]
-    position: i32,
+    pub position: i32,
 
     #[serde(default = "default_attribute_value", rename = "COLOR_0")]
-    color_0: i32,
+    pub color_0: i32,
 
     #[serde(default = "default_attribute_value", rename = "NORMAL")]
-    normal: i32,
+    pub normal: i32,
 
     #[serde(default = "default_attribute_value", rename = "TEXCOORD_0")]
-    texcoord_0: i32
+    pub texcoord_0: i32
 }
 
 fn default_attribute_value() -> i32 {
@@ -114,48 +114,48 @@ fn default_attribute_value() -> i32 {
 #[serde(rename_all = "camelCase")]
 pub struct Accessor {
         #[serde(default)]
-        buffer_view: u32,
+        pub buffer_view: u32,
 
         // The data type of each individual value (component)
         // 5123 = Unsigned Short, 16 bits, 2 bytes
         // 5126 = float, 32 bits, 4 bytes
-        component_type: u32,
+        pub component_type: u32,
 
         // Count is the number of elements in the buffer
-        count: u32,
+        pub count: u32,
 
         // The normalized bool indicates whether the value has to be normalized before use.
         // That is, if the integer value has to be divided by its types MAX value before being used, in order to give a number between
         // [0, 1] for unsigned integer types, and [-1, 1] for signed integer types.
         #[serde(default)]
-        normalized: bool,
+        pub normalized: bool,
 
         // Renamed because "type" is a Rust keyword
         #[serde(rename = "type")]
-        element_type: String
+        pub element_type: String
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct BufferView {
     // A reference index to an underlying buffer.
-    buffer: u32,
+    pub buffer: u32,
 
     // The amount of bytes in the buffer that this view cares about
-    byte_length: u32,
+    pub byte_length: u32,
 
     // The start offset in bytes for this buffer view.
     #[serde(default)]
-    byte_offset: u32
+    pub byte_offset: u32
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct Buffer {
-    byte_length: u32,
+    pub byte_length: u32,
 
     #[serde(default)]
-    uri: String,
+    pub uri: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, Default)]

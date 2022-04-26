@@ -1,8 +1,12 @@
 use std::fmt::{self};
+use std::mem::{size_of};
+use byteorder::{LittleEndian, ByteOrder};
 
 // The "marker" module contains primitive traits and types representing basic properties of types.
 // Need the trait "Copy"
 use std::marker::{Copy};
+
+use crate::shared;
 
 /*
     NOTICE:
@@ -50,6 +54,56 @@ pub struct Vector3
     pub z: f32
 }
 
+impl shared::FromBinary for Vector3 {
+    fn from_binary(binary_data: &[u8]) -> Self {
+        let size_of_f32_in_bytes = size_of::<f32>();
+        let size_of_vector_in_bytes = size_of::<Vector3>();
+
+        // TODO: This could be better safety check... basically I could check that the binary data given is exactly enough bytes to create a single Vector3
+        if binary_data.len() % size_of_vector_in_bytes != 0 {
+            panic!("Binary data is not divisible by size of a vector3 in bytes, which is {}", size_of_vector_in_bytes);
+        }
+        
+        let mut vector_elements: Vec<f32> = vec!();
+        for x in (0..size_of_vector_in_bytes).step_by(size_of_f32_in_bytes) {
+            let mut slice_start_offset = x;
+            let mut slice_end_offset = slice_start_offset + size_of_f32_in_bytes;
+
+            vector_elements.push(LittleEndian::read_f32(&binary_data[slice_start_offset..slice_end_offset]));
+        }
+
+        Vector3::new(vector_elements[0], vector_elements[1], vector_elements[2])
+    }
+
+    fn from_binary_collection(binary_data: &[u8]) -> Vec<Self> {
+        let size_of_f32_in_bytes = size_of::<f32>();
+        let size_of_vector_in_bytes = size_of::<Vector3>();
+
+        if binary_data.len() % size_of_vector_in_bytes != 0 {
+            panic!("Binary vector data is not divisible by size of a vector in bytes, which is {}", size_of_vector_in_bytes);
+        }
+
+        let mut result: Vec<Vector3> = vec!();
+
+        for i in (0..(binary_data.len())).step_by(size_of_vector_in_bytes) {
+            let mut vector_elements: Vec<f32> = vec!();
+
+            for x in (0..size_of_vector_in_bytes).step_by(size_of_f32_in_bytes) {
+                let mut slice_start_offset = i + x;
+                let mut slice_end_offset = slice_start_offset + size_of_f32_in_bytes;
+
+                let decoded = LittleEndian::read_f32(&binary_data[slice_start_offset..slice_end_offset]);
+
+                vector_elements.push(decoded);
+            }
+
+            result.push(Vector3::from_array(vector_elements.as_slice()));
+        }
+ 
+        result
+    }
+}
+
 impl fmt::Debug for Vector3 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Vector3")
@@ -71,6 +125,15 @@ impl Vector3 {
             y,
             z
         }
+    }
+
+    // TODO: Ideally I'd like to simply force passing an array with a fixed size of 3...
+    // But I'm not sure how to easily pass that from calling code
+    pub fn from_array(array: &[f32]) -> Vector3 {
+        if array.len() != 3 {
+            panic!("Array is larger than 3 elements.");
+        }
+        Vector3::new(array[0], array[1], array[2])
     }
 
     pub fn add(&self, vec: &Vector3) -> Vector3 {
@@ -426,6 +489,10 @@ impl Quaternion {
             w,
             v: Vector3::new(x, y, z)
         }
+    }
+
+    pub fn from_array(array: &[f32; 4]) -> Quaternion {
+        Quaternion::new(array[3], array[0], array[1], array[2])
     }
 
     pub fn set_rotation(&mut self, axis: Vector3, angle_in_radians: f32)
