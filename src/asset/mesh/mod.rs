@@ -15,6 +15,7 @@ pub struct Mesh {
     pub scale: beagle_math::Vector3,
     pub rotation: beagle_math::Quaternion,
     pub vertex_positions: Vec<beagle_math::Vector3>,
+    pub indices: Vec<u16>,
     pub material: Material
 }
 
@@ -47,6 +48,7 @@ pub fn parse_model(gltf_file: &gltf2::File) -> Model {
         new_mesh.rotation = rotation;
         new_mesh.children = child_meshes;
         new_mesh.vertex_positions = get_buffer_data_for_acessor::<beagle_math::Vector3>(gltf_file, root_mesh.primitives.first().unwrap().attributes.position as usize);
+        new_mesh.indices = get_buffer_data_for_acessor::<u16>(gltf_file, root_mesh.primitives.first().unwrap().indices as usize);
 
         meshes.push(new_mesh);
     }

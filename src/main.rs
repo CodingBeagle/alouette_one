@@ -206,7 +206,7 @@ fn main() {
             1, &back_buffer_render_target_view, &depth_buffer_view);
 
         // GLTF2 Testing
-        let path_to_mill = current_executable_path.parent().unwrap().join("resources\\mill\\mill.gltf");
+        let path_to_mill = current_executable_path.parent().unwrap().join("resources\\purple_box.gltf");
 
         let gltf_file = match gltf2::File::from(path_to_mill) {
             Ok(gltf_file) => gltf_file,
