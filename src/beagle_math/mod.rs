@@ -477,7 +477,7 @@ impl Mat4
 }
 
 // TODO: Default Quaternion should actually return a UNIT QUATERNION / IDENTITY QUATERNION
-#[derive(Default)]
+#[derive(Default, Copy, Clone)]
 pub struct Quaternion {
     pub w: f32,
     pub v: Vector3

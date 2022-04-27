@@ -25,6 +25,7 @@ mod dx;
 mod window;
 mod camera;
 mod shared;
+mod renderable;
 
 // Remember, constant buffers byte width must be multiple of 16
 struct VertexConstantBuffer {
@@ -222,7 +223,7 @@ fn main() {
         // TODO: Exercise - Enumerate through the available outputs (monitors) for an adapter. Use IDXGIAdapter::EnumOutputs.
         // TODO: Exercise - Each output has a lit of supported display modes. For each of them, list width, height, refresh rate, pixel format, etc...
 
-        let path_to_mesh = current_executable_path.parent().unwrap().join("resources\\mill\\mill.gltf");
+        let path_to_mesh = current_executable_path.parent().unwrap().join("resources\\colored_sphere\\colored_sphere.gltf");
         let gltf = gltf::GLTF::new(path_to_mesh);
 
         let meshes = gltf.load_meshes();

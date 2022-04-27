@@ -41,14 +41,35 @@ pub fn parse_model(gltf_file: &gltf2::File) -> Model {
 
         let mesh_name = root_mesh.name.clone();
 
+        // TODO: I'm still making a simplified assumption that each Mesh has a SINGLE primitive.
+        if root_mesh.primitives.len() != 1 {
+            panic!("Mesh with name {} has more than a single primitive, which is not supported.", root_mesh.name);
+        }
+
+        let mesh_primitive = root_mesh.primitives.first().unwrap();
+        
+        let mesh_material = gltf_file.materials.get(mesh_primitive.material as usize).unwrap(); 
+        
+        let diffuse_material = beagle_math::Vector3::from_array(&mesh_material.extras.diffuse);
+        let specular_material = beagle_math::Vector3::from_array(&mesh_material.extras.specular);
+        let ambient_material = beagle_math::Vector3::from_array(&mesh_material.extras.ambient);
+        let shininess_factor = mesh_material.extras.shininess_factor;
+
         let mut new_mesh = Mesh::default();
         new_mesh.name = mesh_name;
         new_mesh.translation = translation;
         new_mesh.scale = scale;
         new_mesh.rotation = rotation;
         new_mesh.children = child_meshes;
-        new_mesh.vertex_positions = get_buffer_data_for_acessor::<beagle_math::Vector3>(gltf_file, root_mesh.primitives.first().unwrap().attributes.position as usize);
-        new_mesh.indices = get_buffer_data_for_acessor::<u16>(gltf_file, root_mesh.primitives.first().unwrap().indices as usize);
+        new_mesh.vertex_positions = get_buffer_data_for_acessor::<beagle_math::Vector3>(gltf_file, mesh_primitive.attributes.position as usize);
+        new_mesh.indices = get_buffer_data_for_acessor::<u16>(gltf_file, mesh_primitive.indices as usize);
+
+        // TODO: If I wanted to make the Mesh structure even more agnostic about later use, I'd probably
+        // make these extra custom properties more generic. This is very shader specific.
+        new_mesh.material.diffuse_color = diffuse_material;
+        new_mesh.material.ambient_color = ambient_material;
+        new_mesh.material.specular_color = specular_material;
+        new_mesh.material.shininess_factor = shininess_factor;
 
         meshes.push(new_mesh);
     }
