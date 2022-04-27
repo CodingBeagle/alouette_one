@@ -47,13 +47,19 @@ pub fn parse_model(gltf_file: &gltf2::File) -> Model {
         }
 
         let mesh_primitive = root_mesh.primitives.first().unwrap();
-        
-        let mesh_material = gltf_file.materials.get(mesh_primitive.material as usize).unwrap(); 
-        
-        let diffuse_material = beagle_math::Vector3::from_array(&mesh_material.extras.diffuse);
-        let specular_material = beagle_math::Vector3::from_array(&mesh_material.extras.specular);
-        let ambient_material = beagle_math::Vector3::from_array(&mesh_material.extras.ambient);
-        let shininess_factor = mesh_material.extras.shininess_factor;
+                 
+        let mut diffuse_material = beagle_math::Vector3::zero();
+        let mut specular_material = beagle_math::Vector3::zero();
+        let mut ambient_material = beagle_math::Vector3::zero();
+        let mut shininess_factor = 0.0;
+
+        if (mesh_primitive.material != -1) {
+            let mesh_material = gltf_file.materials.get(mesh_primitive.material as usize).unwrap(); 
+            diffuse_material = beagle_math::Vector3::from_array(&mesh_material.extras.diffuse);
+            specular_material = beagle_math::Vector3::from_array(&mesh_material.extras.specular);
+            ambient_material = beagle_math::Vector3::from_array(&mesh_material.extras.ambient);
+            shininess_factor = mesh_material.extras.shininess_factor;
+        }
 
         let mut new_mesh = Mesh::default();
         new_mesh.name = mesh_name;

@@ -89,8 +89,8 @@ pub struct Primitive {
     #[serde(default)]
     pub indices: u32,
 
-    #[serde(default)]
-    pub material: u32
+    #[serde(default = "default_attribute_value")]
+    pub material: i32
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -109,6 +109,8 @@ pub struct Attribute {
     pub texcoord_0: i32
 }
 
+// TODO: Not entirely sure about the best way to represent an absense of integer values in file...
+// Perhaps you can use an Option type with Serde? Then absense would be easily indicated.
 fn default_attribute_value() -> i32 {
     -1
 }
