@@ -214,10 +214,14 @@ fn main() {
             Err(err) => panic!("{}", err)
         };
 
-        let parsed_gltf_file = asset::mesh::parse_model(&gltf_file);
-
-        for lol in &parsed_gltf_file.meshes {
+        let model = asset::mesh::parse_model(&gltf_file);
+        for lol in &model.meshes {
             println!("{}", lol.name);
+        }
+
+        let renderable = renderable::flat_shaded::Renderable::from_model(&model);
+        for mesh in &renderable.renderable_meshes {
+            println!("{}", mesh.scale.x);
         }
 
         // TODO: Exercise - Enumerate through the available outputs (monitors) for an adapter. Use IDXGIAdapter::EnumOutputs.

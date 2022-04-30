@@ -55,9 +55,9 @@ pub fn parse_model(gltf_file: &gltf2::File) -> Model {
 
         if (mesh_primitive.material != -1) {
             let mesh_material = gltf_file.materials.get(mesh_primitive.material as usize).unwrap(); 
-            diffuse_material = beagle_math::Vector3::from_array(&mesh_material.extras.diffuse);
-            specular_material = beagle_math::Vector3::from_array(&mesh_material.extras.specular);
-            ambient_material = beagle_math::Vector3::from_array(&mesh_material.extras.ambient);
+            diffuse_material = beagle_math::Vector3::from_array(&mesh_material.extras.diffuse_color);
+            specular_material = beagle_math::Vector3::from_array(&mesh_material.extras.specular_color);
+            ambient_material = beagle_math::Vector3::from_array(&mesh_material.extras.ambient_color);
             shininess_factor = mesh_material.extras.shininess_factor;
         }
 

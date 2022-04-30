@@ -164,16 +164,15 @@ pub struct Buffer {
 }
 
 #[derive(Serialize, Deserialize, Debug, Default)]
-#[serde(rename_all = "camelCase")]
 pub struct Extra {
     #[serde(default)]
-    pub diffuse: [f32; 3],
+    pub diffuse_color: [f32; 3],
 
     #[serde(default)]
-    pub specular: [f32; 3],
+    pub specular_color: [f32; 3],
 
     #[serde(default)]
-    pub ambient: [f32; 3],
+    pub ambient_color: [f32; 3],
     
     #[serde(default)]
     pub shininess_factor: f32
