@@ -208,7 +208,7 @@ fn main() {
             1, &back_buffer_render_target_view, &depth_buffer_view);
 
         // GLTF2 Testing
-        let path_to_mill = current_executable_path.parent().unwrap().join("resources\\colored_sphere\\colored_sphere.gltf");
+        let path_to_mill = current_executable_path.parent().unwrap().join("resources\\mill\\mill.gltf");
 
         let gltf_file = match gltf2::File::from(path_to_mill) {
             Ok(gltf_file) => gltf_file,
@@ -216,9 +216,7 @@ fn main() {
         };
 
         let model = asset::mesh::parse_model(&gltf_file);
-
         let renderable_data = renderable::flat_shaded::RenderData::from_model(&model);
-
         let renderable = renderable::flat_shaded::Renderable::from_render_data(renderable_data);
 
         // TODO: Exercise - Enumerate through the available outputs (monitors) for an adapter. Use IDXGIAdapter::EnumOutputs.
@@ -417,27 +415,27 @@ fn main() {
                 }
 
                 if window_helper.is_key_pressed(window::Key::D) {
-                    drone_position_delta.x = 0.5;
+                    drone_position_delta.x = 0.1;
                 }
 
                 if window_helper.is_key_pressed(window::Key::A) {
-                    drone_position_delta.x = -0.5;
+                    drone_position_delta.x = -0.1;
                 }
 
                 if window_helper.is_key_pressed(window::Key::W) {
-                    drone_position_delta.z = 0.5;
+                    drone_position_delta.z = 0.1;
                 }
 
                 if window_helper.is_key_pressed(window::Key::S) {
-                    drone_position_delta.z = -0.5;
+                    drone_position_delta.z = -0.1;
                 }
 
                 if window_helper.is_key_pressed(window::Key::Space) {
-                    drone_position_delta.y = -0.5;
+                    drone_position_delta.y = -0.1;
                 }
 
                 if window_helper.is_key_pressed(window::Key::LeftShift) {
-                    drone_position_delta.y = 0.5;
+                    drone_position_delta.y = 0.1;
                 }
 
                 if window_helper.is_key_pressed(window::Key::Escape) {
@@ -468,113 +466,37 @@ fn main() {
                     1.0, 
                     0);
 
-                for renderable in &renderable.renderables {
+                // Doing something not so pretty here...
+                // In my memory arena of renderable meshes, I find the ones that have no parents.
+                // These meshes are "root" meshes, meaning they have to be traversed in order to render themselves and their potential children.
+                // All other meshes are in some way referenced by others, and will eventually be rendered when traversing the tree
+                let mut root_mesh_indices : Vec<u32> = vec!();
+                for (index, renderable_mesh) in renderable.renderables.iter().enumerate() {
+                    let mut is_child_of_other_mesh = false;
 
-                }
-
-                /*
-                for renderable in &renderable.renderables {
-                    // Update vertex constant buffer for world matrix.
-                    // The "Map" method retrieves a pointer to the data contained in a subresource (such as our constant buffer), and we can then use
-                    // That pointer to update its data.
-                    // When you call the Map method, the GPU will have its access to that subresource denied.
-                    let vertex_constant_buffer_ref = vertex_constant_buffer.as_ref().unwrap();
-                    let mapped_resource = dx_device_context.Map(vertex_constant_buffer_ref, 0, D3D11_MAP_WRITE_DISCARD, 0);
-
-                    if mapped_resource.is_err() {
-                        panic!("Failed to retrieve mapped resource for world matrix!");
+                    // Is this mesh referred to as a child of any other meshes?
+                    for (inner_index, inner_renderable_mesh) in renderable.renderables.iter().enumerate() {
+                        if inner_index != index 
+                            && inner_renderable_mesh.renderable_mesh_data.children.contains(&(index as u16)) {
+                                is_child_of_other_mesh = true;
+                        }
                     }
 
-                    let vertex_constant_buffer_mapped_resource = mapped_resource.unwrap().pData as *mut VertexConstantBuffer;
-
-                    let view_matrix = drone_camera.view_matrix();
-
-                    let model_matrix = beagle_math::Mat4::translate(&object_position).mul(&beagle_math::Mat4::uniform_scale(5.0));
-
-                    // OBJECT -> WORLD -> VIEW -> PROJECTION
-                    // MY MATH LIBRARY CURRENTLY USES ROW-MAJOR CONVENTION, THIS MEANS THAT YOUR TYPICAL P * V * TRSv order becomes v(SRT) * VIEW * PROJECTION
-                    // THIS MEANS THAT INSTEAD OF READING RIGHT TO LEFT IN ORDER TO UNDERSTAND THE ORDER OF TRANSFORMS A VERTICE GOES THROUGH
-                    // I HAVE TO READ FROM LEFT TO RIGHT.
-                    (*vertex_constant_buffer_mapped_resource).worldViewProjection = model_matrix.mul(&view_matrix.mul(&beagle_math::Mat4::projection((60.0f32).to_radians(), window::WINDOW_WIDTH as f32, window::WINDOW_HEIGHT as f32, 0.1, 5000.0)));
-                    
-                    // My matrices are all designed for being multipled with a ROW vector.
-                    // Also, I store my matrices in row-major order in memory.
-                    // By default, HLSL will both READ and PACK matrices in column-major. 
-                    // So I transpose my matrix so that it will be read correctly as a ROW MAJOR matrix on the shader side.
-                    (*vertex_constant_buffer_mapped_resource).worldViewProjection.tranpose();
-
-                    let drone_position = drone_camera.get_position();
-                    (*vertex_constant_buffer_mapped_resource).cameraPosition = beagle_math::Vector4::new(drone_position.x, drone_position.y, drone_position.z, 0.0);
-
-                    (*vertex_constant_buffer_mapped_resource).modelMatrix = model_matrix;
-                    (*vertex_constant_buffer_mapped_resource).modelMatrix.tranpose();
-
-                    (*vertex_constant_buffer_mapped_resource).diffuseColor = beagle_math::Vector4::new(
-                        renderable.renderable_mesh_data.material.diffuse_color.x,
-                        renderable.renderable_mesh_data.material.diffuse_color.y,
-                        renderable.renderable_mesh_data.material.diffuse_color.z,
-                        0.0
-                    );
-
-                    (*vertex_constant_buffer_mapped_resource).ambientColor = beagle_math::Vector4::new(
-                        renderable.renderable_mesh_data.material.ambient_color.x,
-                        renderable.renderable_mesh_data.material.ambient_color.y,
-                        renderable.renderable_mesh_data.material.ambient_color.z,
-                        0.0);
-
-                    (*vertex_constant_buffer_mapped_resource).specularColor = beagle_math::Vector4::new(
-                        renderable.renderable_mesh_data.material.specular_color.x,
-                        renderable.renderable_mesh_data.material.specular_color.y,
-                        renderable.renderable_mesh_data.material.specular_color.z,
-                        0.0);
-
-                    // After we're done mapping new data, we have to call Unmap in order to invalidate the pointer to the buffer
-                    // And reenable the GPU's access to that resource
-                    dx_device_context.Unmap(vertex_constant_buffer_ref, 0);
-
-                    // RENDER VERTEX NORMALS
-                    dx_device_context.IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_LINELIST);
-                    dx_device_context.VSSetShader(&vertex_normals_shader, ptr::null(), 0);
-                    dx_device_context.IASetInputLayout(&vertex_normals_shader_input_layout);
-                    dx_device_context.IASetIndexBuffer(None,0, 0);
-                    dx_device_context.IASetVertexBuffers(
-                        0,
-                        1,
-                        [Some(renderable.debug_vertex_normals_buffer.clone())].as_ptr(),
-                        [
-                            (mem::size_of::<beagle_math::Vector3>()) as u32
-                        ].as_ptr(),
-                        [
-                            0
-                        ].as_ptr());
-
-                    dx_device_context.Draw((renderable.renderable_mesh_data.debug_vertex_normals.len()) as u32, 0);
-
-                    dx_device_context.IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-                    dx_device_context.VSSetShader(&vertex_shader, ptr::null(), 0);
-                    dx_device_context.IASetInputLayout(&input_layout_object);
-
-                    // TODO: I probably need to find a way not to clone this stuff...
-                    dx_device_context.IASetVertexBuffers(
-                        0,
-                        2,
-                        ([
-                            Some(renderable.vertex_buffer.clone()),
-                            Some(renderable.normals_buffer.clone())
-                        ]).as_ptr(),
-                        ([
-                            (mem::size_of::<beagle_math::Vector3>()) as u32,
-                            (mem::size_of::<beagle_math::Vector3>()) as u32
-                        ]).as_ptr(),
-                        ([
-                            0,
-                            0
-                        ]).as_ptr()
-                    );
-
-                    dx_device_context.Draw(renderable.renderable_mesh_data.vertex_positions.len() as u32, 0)
+                    if !is_child_of_other_mesh {
+                        root_mesh_indices.push(index as u32);
+                    }
                 }
-                 */
+
+                for root_mesh_index in root_mesh_indices {
+                    red(
+                        root_mesh_index as u32,
+                        &beagle_math::Mat4::identity(),
+                        &renderable.renderables,
+                        &dx_device_context,
+                        vertex_constant_buffer.as_ref().unwrap(),
+                        &mut drone_camera
+                    );
+                }
 
                 if swap_chain.Present(1, 0).is_err() {
                     panic!("Failed to present!");
@@ -590,12 +512,13 @@ unsafe fn red(
     renderable_meshes: &Vec<RenderableMesh>,
     dx_device_context: &ID3D11DeviceContext,
     constant_buffer: &ID3D11Buffer,
-    view_matrix: &beagle_math::Mat4) -> () {
+    camera: &mut camera::FreeFlight) -> () {
     let current_renderable_mesh = &renderable_meshes[index as usize];
 
     // Model Matrix
     let model_matrix = beagle_math::Mat4::translate(&current_renderable_mesh.renderable_mesh_data.translation)
-        .mul(&current_renderable_mesh.renderable_mesh_data.rotation.to_matrix())
+        //.mul(&current_renderable_mesh.renderable_mesh_data.rotation.to_matrix())
+        //.mul(&beagle_math::Mat4::uniform_scale(1.0));
         .mul(&beagle_math::Mat4::scale(&current_renderable_mesh.renderable_mesh_data.scale));
     
     let combined_matrix = mat.mul(&model_matrix);
@@ -606,6 +529,11 @@ unsafe fn red(
     }
 
     let constant_vertex_buffer = mapped_resource.unwrap().pData as *mut VertexConstantBuffer;
+
+    let view_matrix = camera.view_matrix();
+
+    let camera_position = camera.get_position();
+    (*constant_vertex_buffer).cameraPosition = beagle_math::Vector4::new(camera_position.x, camera_position.y, camera_position.z, 0.0);
 
     (*constant_vertex_buffer).worldViewProjection = combined_matrix.mul(&view_matrix.mul(&beagle_math::Mat4::projection((60.0f32).to_radians(), window::WINDOW_WIDTH as f32, window::WINDOW_HEIGHT as f32, 0.1, 5000.0)));
     (*constant_vertex_buffer).worldViewProjection.tranpose();
@@ -664,7 +592,7 @@ unsafe fn red(
                 renderable_meshes,
                 dx_device_context,
                 constant_buffer,
-                view_matrix
+                camera
             )
         }
     }

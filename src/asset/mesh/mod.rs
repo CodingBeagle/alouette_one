@@ -32,7 +32,14 @@ pub fn parse_model(gltf_file: &gltf2::File) -> Model {
 
     for node in &gltf_file.nodes {
         let translation = beagle_math::Vector3::from_array(&node.translation);
-        let scale = beagle_math::Vector3::from_array(&node.scale);
+
+        let mut scale = beagle_math::Vector3::from_array(&node.scale);
+        // absense of scale in file means it has a unit scale (1, 1, 1)
+        // TODO: Make easy way to compare vectors, so I could do... Vector3::zero() == node.scale
+        if scale.x == 0.0 && scale.y == 0.0 && scale.z == 0.0 {
+            scale = beagle_math::Vector3::new(1.0, 1.0, 1.0);
+        }
+
         let rotation = beagle_math::Quaternion::from_array(&node.rotation);
         let child_meshes : Vec<u16> = node.children.iter().map(|x| *x as u16).collect();
 

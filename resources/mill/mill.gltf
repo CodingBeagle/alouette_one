@@ -61,11 +61,22 @@
         {
             "doubleSided" : true,
             "extras" : {
-                "diffuse" : [
-                    0.8799999952316284,
-                    0.8799999952316284,
-                    0.8799999952316284
-                ]
+                "diffuse_color" : [
+                    1.0,
+                    0.0,
+                    0.0
+                ],
+                "ambient_color" : [
+                    0.10000000149011612,
+                    0.10000000149011612,
+                    0.10000000149011612
+                ],
+                "specular_color" : [
+                    1.0,
+                    1.0,
+                    1.0
+                ],
+                "shininess_factor" : 5.0
             },
             "name" : "Material.001",
             "pbrMetallicRoughness" : {}
@@ -73,11 +84,22 @@
         {
             "doubleSided" : true,
             "extras" : {
-                "diffuse" : [
-                    0.7170000076293945,
-                    0.5600000023841858,
-                    0.3400000035762787
-                ]
+                "diffuse_color" : [
+                    1.0,
+                    0.0,
+                    0.0
+                ],
+                "ambient_color" : [
+                    0.10000000149011612,
+                    0.10000000149011612,
+                    0.10000000149011612
+                ],
+                "specular_color" : [
+                    1.0,
+                    1.0,
+                    1.0
+                ],
+                "shininess_factor" : 5.0
             },
             "name" : "Material.003",
             "pbrMetallicRoughness" : {}
@@ -85,11 +107,22 @@
         {
             "doubleSided" : true,
             "extras" : {
-                "diffuse" : [
-                    0.7900000214576721,
-                    0.6700000166893005,
-                    0.6700000166893005
-                ]
+                "diffuse_color" : [
+                    1.0,
+                    0.0,
+                    0.0
+                ],
+                "ambient_color" : [
+                    0.10000000149011612,
+                    0.10000000149011612,
+                    0.10000000149011612
+                ],
+                "specular_color" : [
+                    1.0,
+                    1.0,
+                    1.0
+                ],
+                "shininess_factor" : 5.0
             },
             "name" : "Material.002",
             "pbrMetallicRoughness" : {}
