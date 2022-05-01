@@ -15,7 +15,6 @@ cbuffer cbPerObject : register(b0)
 struct VSIn
 {
     float3 PosL : POSITION;
-    float4 Color : COLOR;
     float3 Normal : NORMAL;
 };
 

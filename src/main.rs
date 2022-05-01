@@ -222,116 +222,12 @@ fn main() {
 
         // TODO: Exercise - Enumerate through the available outputs (monitors) for an adapter. Use IDXGIAdapter::EnumOutputs.
         // TODO: Exercise - Each output has a lit of supported display modes. For each of them, list width, height, refresh rate, pixel format, etc...
-        let path_to_mesh = current_executable_path.parent().unwrap().join("resources\\colored_sphere\\colored_sphere.gltf");
-        let gltf = gltf::GLTF::new(path_to_mesh);
-
-        let meshes = gltf.load_meshes();
-        let mesh = meshes.first().unwrap();
-        let primitive = mesh.loaded_primitives.first().unwrap();
-
-        // VERTEX BUFFER
-        let vertex_positions = primitive.vertex_positions.buffer_data.clone();
-        let converted_normal_positions = gltf::GLTF::decode_binary_to_vector3(&vertex_positions);
-        let decoded_index_buffer = gltf::GLTF::decode_binary_to_scalar(&primitive.vertex_indices.buffer_data);
-
-        let expanded_vertex_buffer = gltf::GLTF::expand_by_indices::<beagle_math::Vector3>(&decoded_index_buffer, &converted_normal_positions);
-        let vertex_buffer = Some(create_buffer::<beagle_math::Vector3>(BufferType::Vertex, Usage::GpuReadWrite, CpuAccess::None, expanded_vertex_buffer.as_slice()));
-
-        // COLOR BUFFER
-        let vertex_colors = primitive.vertex_colors.as_ref().unwrap().buffer_data.as_slice();
-        let decoded_vertex_colors = gltf::GLTF::decode_binary_to_vector4::<u16>(vertex_colors);
-        let expanded_vertex_colors = gltf::GLTF::expand_by_indices::<beagle_math::Vector4>(&decoded_index_buffer, &decoded_vertex_colors);
-        let color_buffer = Some(create_buffer::<beagle_math::Vector4>(BufferType::Vertex, Usage::GpuReadWrite, CpuAccess::None, expanded_vertex_colors.as_slice()));
-            
-        // VERTEX NORMAL BUFFER
-        let the_vertex_normals = gltf::GLTF::calculate_vertex_normals(&expanded_vertex_buffer);
-        let normals_buffer = Some(create_buffer::<beagle_math::Vector3>(BufferType::Vertex, Usage::GpuReadWrite, CpuAccess::None, &the_vertex_normals));
-        
-        // WEAVING MAGIC
-        let mut the_finals: Vec<beagle_math::Vector3> = vec!();
-
-        /*
-                Blender GLTF findings on vertex normals:
-                The buffer with vertex positions will have each vertex position replicated the amount of times that there exists a vertex normal for that position (for each of the adjacement faces of the vertex).
-                The buffer with vertex normals will have the vertex normal as a direction, with each row / index belonging to the vertex in the same row / index of the vertex positions buffer.
-
-                This structure makes it easy to interweave the two, to create a list of vertices for, say, a line list to render.
-
-                It's also important to note that Blender will export SPLIT vertex normals, that is, it will not output a single weighted normal for each vertex, but instead
-                each vertex will have the same amount of vertex normals as there is adjacent surfaces to that vertex. So you get one surface direction for each surface the vertex is used to represent.
-        */
-        for (i, vert_pos) in the_vertex_normals.iter().enumerate() {
-            let vert_normal_directions = beagle_math::Vector3::new(vert_pos.x, vert_pos.y, vert_pos.z);
-
-            // TODO: Important learning
-            // When working with vectors, it's important to realize if you're working on something representing a position or a direction.
-            // Because it makes no sense to normalize a vector representing a position. That will screw with your positions, obviously.
-            let scaled = vert_normal_directions.mul(0.2 / vert_normal_directions.length());
-
-            let the_other = beagle_math::Vector3::new(
-                expanded_vertex_buffer[i].x + scaled.x,
-                expanded_vertex_buffer[i].y + scaled.y,
-                expanded_vertex_buffer[i].z + scaled.z);
-
-            the_finals.push(beagle_math::Vector3::new(expanded_vertex_buffer[i].x, expanded_vertex_buffer[i].y, expanded_vertex_buffer[i].z));
-            the_finals.push(beagle_math::Vector3::new(
-                the_other.x,
-                the_other.y,
-                the_other.z));
-        }
-
-        let normals_buffer_for_rendering = Some(create_buffer::<beagle_math::Vector3>(BufferType::Vertex, Usage::GpuReadWrite, CpuAccess::None, &the_finals));
-
-        let holy_moly = [
-            vertex_buffer.clone(),
-            color_buffer.clone(),
-            normals_buffer.clone()
-        ];
-
-        let strides = [
-            (mem::size_of::<beagle_math::Vector3>()) as u32, // Size in bytes of each element that are to be used
-            (mem::size_of::<beagle_math::Vector4>()) as u32, // Color Buffer Strides
-            (mem::size_of::<beagle_math::Vector3>()) as u32 // Vertex Normals Strides
-        ];
-
-        let offsets = [
-            0,
-            0,
-            0
-        ];
-        
-        dx_device_context.IASetVertexBuffers(
-            0,
-            3,
-            holy_moly.as_ptr(),
-            strides.as_ptr(),
-            offsets.as_ptr());
-
-        // INDEX BUFFER
-        /*
-        let mut index_buffer_description = D3D11_BUFFER_DESC::default();
-        index_buffer_description.ByteWidth = (mem::size_of::<u16>() * decoded_index_buffer.len()) as u32;
-        index_buffer_description.Usage = D3D11_USAGE_DEFAULT;
-        index_buffer_description.BindFlags = D3D11_BIND_INDEX_BUFFER;
-
-        let mut index_buffer_data = D3D11_SUBRESOURCE_DATA::default();
-        index_buffer_data.pSysMem = decoded_index_buffer.as_ptr() as *mut c_void;
-
-        let index_buffer = match dx_device.CreateBuffer(&index_buffer_description, &index_buffer_data) {
-            Ok(id) => Some(id),
-            Err(err) => panic!("Failed to create index buffer: {}", err)
-        };
-         */
-
-        //dx_device_context.IASetIndexBuffer(&index_buffer, DXGI_FORMAT_R16_UINT, 0);
-
         let path_to_vertex_shader = current_executable_path.parent().unwrap().join("resources\\shaders\\shaders\\compiled-vertex.shader");
 
         let compiled_vertex_shader_code = fs::read(path_to_vertex_shader).unwrap();
 
         // TODO: Read up on this whole layout object thing again...
         let semantic_name_position = CString::new("POSITION").unwrap();
-        let semantic_name_color = CString::new("COLOR").unwrap();
         let semantic_name_normal = CString::new("NORMAL").unwrap();
 
         // NOTICE that I am specifying an "Input Slot" for each input element.
@@ -350,19 +246,10 @@ fn main() {
                 InstanceDataStepRate: 0
             },
             D3D11_INPUT_ELEMENT_DESC {
-                SemanticName: PSTR(semantic_name_color.as_ptr() as *mut u8),
-                SemanticIndex: 0,
-                Format: DXGI_FORMAT_R32G32B32A32_FLOAT,
-                InputSlot: 1,
-                AlignedByteOffset: 0,
-                InputSlotClass: D3D11_INPUT_PER_VERTEX_DATA,
-                InstanceDataStepRate: 0
-            },
-            D3D11_INPUT_ELEMENT_DESC {
                 SemanticName: PSTR(semantic_name_normal.as_ptr() as *mut u8),
                 SemanticIndex: 0,
                 Format: DXGI_FORMAT_R32G32B32_FLOAT,
-                InputSlot: 2,
+                InputSlot: 1,
                 AlignedByteOffset: 0,
                 InputSlotClass: D3D11_INPUT_PER_VERTEX_DATA,
                 InstanceDataStepRate: 0
@@ -374,7 +261,7 @@ fn main() {
         // If it fits.
         let input_layout_object = match dx_device.CreateInputLayout(
             input_element_descriptions.as_ptr(),
-            3,
+            2,
             compiled_vertex_shader_code.as_ptr() as *const c_void,
             compiled_vertex_shader_code.len()) {
                 Ok(ilo) => ilo,
@@ -580,25 +467,6 @@ fn main() {
                     1.0, 
                     0);
 
-                // RENDER VERTEX NORMALS
-                dx_device_context.IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_LINELIST);
-                dx_device_context.VSSetShader(&vertex_normals_shader, ptr::null(), 0);
-                dx_device_context.IASetInputLayout(&vertex_normals_shader_input_layout);
-                //dx_device_context.VSSetConstantBuffers(0, 1, &mut vertex_constant_buffer);
-                dx_device_context.IASetIndexBuffer(None,0, 0);
-                dx_device_context.IASetVertexBuffers(
-                    0,
-                    1,
-                    &normals_buffer_for_rendering,
-                    [
-                        (mem::size_of::<beagle_math::Vector3>()) as u32
-                    ].as_ptr(),
-                    [
-                        0
-                    ].as_ptr());
-
-                dx_device_context.Draw((the_finals.len()) as u32, 0);
-
                 for renderable in &renderable.renderables {
                     // Update vertex constant buffer for world matrix.
                     // The "Map" method retrieves a pointer to the data contained in a subresource (such as our constant buffer), and we can then use
@@ -632,16 +500,8 @@ fn main() {
                     let drone_position = drone_camera.get_position();
                     (*vertex_constant_buffer_mapped_resource).cameraPosition = beagle_math::Vector4::new(drone_position.x, drone_position.y, drone_position.z, 0.0);
 
-                    //println!("{:?}", (*vertex_constant_buffer_mapped_resource).cameraPosition);
-
                     (*vertex_constant_buffer_mapped_resource).modelMatrix = model_matrix;
                     (*vertex_constant_buffer_mapped_resource).modelMatrix.tranpose();
-
-                    /*
-                    (*vertex_constant_buffer_mapped_resource).diffuseColor = beagle_math::Vector4::new(1.0, 0.0, 0.0, 0.0);
-                    (*vertex_constant_buffer_mapped_resource).ambientColor = beagle_math::Vector4::new(0.15, 0.15, 0.15, 0.0);
-                    (*vertex_constant_buffer_mapped_resource).specularColor = beagle_math::Vector4::new(0.5, 0.5, 0.5, 0.0);
-                     */
 
                     (*vertex_constant_buffer_mapped_resource).diffuseColor = beagle_math::Vector4::new(
                         renderable.renderable_mesh_data.material.diffuse_color.x,
@@ -666,6 +526,24 @@ fn main() {
                     // And reenable the GPU's access to that resource
                     dx_device_context.Unmap(vertex_constant_buffer_ref, 0);
 
+                    // RENDER VERTEX NORMALS
+                    dx_device_context.IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_LINELIST);
+                    dx_device_context.VSSetShader(&vertex_normals_shader, ptr::null(), 0);
+                    dx_device_context.IASetInputLayout(&vertex_normals_shader_input_layout);
+                    dx_device_context.IASetIndexBuffer(None,0, 0);
+                    dx_device_context.IASetVertexBuffers(
+                        0,
+                        1,
+                        [Some(renderable.debug_vertex_normals_buffer.clone())].as_ptr(),
+                        [
+                            (mem::size_of::<beagle_math::Vector3>()) as u32
+                        ].as_ptr(),
+                        [
+                            0
+                        ].as_ptr());
+
+                    dx_device_context.Draw((renderable.renderable_mesh_data.debug_vertex_normals.len()) as u32, 0);
+
                     dx_device_context.IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
                     dx_device_context.VSSetShader(&vertex_shader, ptr::null(), 0);
                     dx_device_context.IASetInputLayout(&input_layout_object);
@@ -676,7 +554,7 @@ fn main() {
                         2,
                         ([
                             Some(renderable.vertex_buffer.clone()),
-                            Some(renderable.vertex_buffer.clone())
+                            Some(renderable.normals_buffer.clone())
                         ]).as_ptr(),
                         ([
                             (mem::size_of::<beagle_math::Vector3>()) as u32,
@@ -688,7 +566,7 @@ fn main() {
                         ]).as_ptr()
                     );
 
-                    dx_device_context.Draw(renderable.renderable_mesh_data.vertex_normals.len() as u32, 0)
+                    dx_device_context.Draw(renderable.renderable_mesh_data.vertex_positions.len() as u32, 0)
                 }
 
                 if swap_chain.Present(1, 0).is_err() {

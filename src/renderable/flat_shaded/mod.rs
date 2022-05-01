@@ -47,6 +47,7 @@ impl Renderable {
                 RenderableMesh {
                     vertex_buffer: Renderable::create_buffer::<beagle_math::Vector3>(BufferType::Vertex, Usage::GpuReadWrite, CpuAccess::None, &renderable_mesh_data.vertex_positions),
                     normals_buffer: Renderable::create_buffer::<beagle_math::Vector3>(BufferType::Vertex, Usage::GpuReadWrite, CpuAccess::None, &renderable_mesh_data.vertex_normals),
+                    debug_vertex_normals_buffer: Renderable::create_buffer::<beagle_math::Vector3>(BufferType::Vertex, Usage::GpuReadWrite, CpuAccess::None, &renderable_mesh_data.debug_vertex_normals),
                     renderable_mesh_data: renderable_mesh_data
                 }
             )
@@ -87,7 +88,8 @@ impl Renderable {
 pub struct RenderableMesh {
     pub renderable_mesh_data: RenderableMeshData,
     pub vertex_buffer: ID3D11Buffer,
-    pub normals_buffer: ID3D11Buffer
+    pub normals_buffer: ID3D11Buffer,
+    pub debug_vertex_normals_buffer: ID3D11Buffer
 }
 
 pub struct RenderData {
@@ -111,6 +113,7 @@ impl RenderData {
                 };
                 let vertex_positions= RenderData::expand_vertex_buffer_by_indices(&mesh.indices, &mesh.vertex_positions);
                 let vertex_normals = RenderData::calculate_vertex_normals(&vertex_positions);
+                let debug_vertex_normals = RenderData::create_vertex_normal_debug_buffer(&vertex_positions, &vertex_normals);
 
                 RenderableMeshData {
                     children,
@@ -119,7 +122,8 @@ impl RenderData {
                     scale,
                     rotation,
                     vertex_positions,
-                    vertex_normals
+                    vertex_normals,
+                    debug_vertex_normals
                 }
             }).collect();
 
@@ -130,6 +134,31 @@ impl RenderData {
 
     fn expand_vertex_buffer_by_indices<T: Copy>(indices: &Vec<u16>, vertex_buffer: &Vec<T>) -> Vec<T> {
         indices.iter().map(|x| vertex_buffer.get((*x) as usize).unwrap().clone()).collect()
+    }
+
+    // This buffer is a list of point pairs, each pair being the position of a vertex coupled with a point representing the end of its vertex normal.
+    // This buffer can be used for debug rendering of a renderable's vertex normals.
+    // This function expects a list of vertex positions and a list of vertex normals, with the vertex normal associated to a 
+    // vertex position at the SAME index as the vertex position.
+    fn create_vertex_normal_debug_buffer(vertex_positions: &Vec<beagle_math::Vector3>, vertex_normals: &Vec<beagle_math::Vector3>) -> Vec<beagle_math::Vector3> {
+        let mut result: Vec<beagle_math::Vector3> = vec!();
+
+        for (index, vertex_normal) in vertex_normals.iter().enumerate() {
+            // When working with vectors, it's important to realize if you're working on something representing a position or a direction.
+            // Because it makes no sense to normalize a vector representing a position. That will screw with your positions, obviously.
+            let scaled_vertex_normal = vertex_normal.mul(0.2 / vertex_normal.length());
+
+            let vertex_normal_end_relative_to_vertex_position = beagle_math::Vector3::new(
+                vertex_positions[index].x + scaled_vertex_normal.x,
+                vertex_positions[index].y + scaled_vertex_normal.y,
+                vertex_positions[index].z + scaled_vertex_normal.z,
+            );
+
+            result.push(vertex_positions[index]);
+            result.push(vertex_normal_end_relative_to_vertex_position);
+        }
+
+        result
     }
 
     /*
@@ -180,7 +209,8 @@ pub struct RenderableMeshData {
     pub scale: beagle_math::Vector3,
     pub rotation: beagle_math::Quaternion,
     pub vertex_positions: Vec<beagle_math::Vector3>,
-    pub vertex_normals: Vec<beagle_math::Vector3>
+    pub vertex_normals: Vec<beagle_math::Vector3>,
+    pub debug_vertex_normals: Vec<beagle_math::Vector3>
 }
 
 pub struct Material {
