@@ -1,3 +1,4 @@
+use renderable::flat_shaded::RenderableMesh;
 use windows::{
     Win32::{
         System::*,
@@ -468,6 +469,11 @@ fn main() {
                     0);
 
                 for renderable in &renderable.renderables {
+
+                }
+
+                /*
+                for renderable in &renderable.renderables {
                     // Update vertex constant buffer for world matrix.
                     // The "Map" method retrieves a pointer to the data contained in a subresource (such as our constant buffer), and we can then use
                     // That pointer to update its data.
@@ -568,11 +574,98 @@ fn main() {
 
                     dx_device_context.Draw(renderable.renderable_mesh_data.vertex_positions.len() as u32, 0)
                 }
+                 */
 
                 if swap_chain.Present(1, 0).is_err() {
                     panic!("Failed to present!");
                 }
             }
+        }
+    }
+}
+
+unsafe fn red(
+    index: u32,
+    mat: &beagle_math::Mat4,
+    renderable_meshes: &Vec<RenderableMesh>,
+    dx_device_context: &ID3D11DeviceContext,
+    constant_buffer: &ID3D11Buffer,
+    view_matrix: &beagle_math::Mat4) -> () {
+    let current_renderable_mesh = &renderable_meshes[index as usize];
+
+    // Model Matrix
+    let model_matrix = beagle_math::Mat4::translate(&current_renderable_mesh.renderable_mesh_data.translation)
+        .mul(&current_renderable_mesh.renderable_mesh_data.rotation.to_matrix())
+        .mul(&beagle_math::Mat4::scale(&current_renderable_mesh.renderable_mesh_data.scale));
+    
+    let combined_matrix = mat.mul(&model_matrix);
+
+    let mapped_resource = dx_device_context.Map(constant_buffer, 0, D3D11_MAP_WRITE_DISCARD, 0);
+    if mapped_resource.is_err() {
+        panic!("Failed to retrieve mapped resource for world matrix!");
+    }
+
+    let constant_vertex_buffer = mapped_resource.unwrap().pData as *mut VertexConstantBuffer;
+
+    (*constant_vertex_buffer).worldViewProjection = combined_matrix.mul(&view_matrix.mul(&beagle_math::Mat4::projection((60.0f32).to_radians(), window::WINDOW_WIDTH as f32, window::WINDOW_HEIGHT as f32, 0.1, 5000.0)));
+    (*constant_vertex_buffer).worldViewProjection.tranpose();
+
+    // TODO: Mat4 should implement the Copy/Clone trait!
+    (*constant_vertex_buffer).modelMatrix = beagle_math::Mat4::new(combined_matrix.matrix);
+    (*constant_vertex_buffer).modelMatrix.tranpose();
+
+    (*constant_vertex_buffer).diffuseColor = beagle_math::Vector4::new(
+        current_renderable_mesh.renderable_mesh_data.material.diffuse_color.x,
+        current_renderable_mesh.renderable_mesh_data.material.diffuse_color.y,
+        current_renderable_mesh.renderable_mesh_data.material.diffuse_color.z,
+        0.0
+    );
+
+    (*constant_vertex_buffer).ambientColor = beagle_math::Vector4::new(
+        current_renderable_mesh.renderable_mesh_data.material.ambient_color.x,
+        current_renderable_mesh.renderable_mesh_data.material.ambient_color.y,
+        current_renderable_mesh.renderable_mesh_data.material.ambient_color.z,
+        0.0);
+
+    (*constant_vertex_buffer).specularColor = beagle_math::Vector4::new(
+        current_renderable_mesh.renderable_mesh_data.material.specular_color.x,
+        current_renderable_mesh.renderable_mesh_data.material.specular_color.y,
+        current_renderable_mesh.renderable_mesh_data.material.specular_color.z,
+        0.0);
+
+    // After we're done mapping new data, we have to call Unmap in order to invalidate the pointer to the buffer
+    // And reenable the GPU's access to that resource
+    dx_device_context.Unmap(constant_buffer, 0);
+
+    dx_device_context.IASetVertexBuffers(
+        0,
+        2,
+        ([
+            Some(current_renderable_mesh.vertex_buffer.clone()),
+            Some(current_renderable_mesh.normals_buffer.clone())
+        ]).as_ptr(),
+        ([
+            (mem::size_of::<beagle_math::Vector3>()) as u32,
+            (mem::size_of::<beagle_math::Vector3>()) as u32
+        ]).as_ptr(),
+        ([
+            0,
+            0
+        ]).as_ptr()
+    );
+
+    dx_device_context.Draw(current_renderable_mesh.renderable_mesh_data.vertex_positions.len() as u32, 0);
+
+    if current_renderable_mesh.renderable_mesh_data.children.len() > 0 {
+        for child_index in &current_renderable_mesh.renderable_mesh_data.children {
+            red(
+                *child_index as u32,
+                &combined_matrix,
+                renderable_meshes,
+                dx_device_context,
+                constant_buffer,
+                view_matrix
+            )
         }
     }
 }
