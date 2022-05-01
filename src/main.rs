@@ -616,49 +616,6 @@ fn prepare_vertex_normals_input_layout(dx_device: &ID3D11Device, compiled_vertex
     }
 }
 
-enum Usage {
-    GpuReadWrite = D3D11_USAGE_DEFAULT as isize,
-    GpuReadCpuWrite = D3D11_USAGE_DYNAMIC as isize
-}
-
-enum BufferType {
-    Vertex = D3D11_BIND_VERTEX_BUFFER as isize,
-    Index = D3D11_BIND_INDEX_BUFFER as isize,
-    Shader = D3D11_BIND_CONSTANT_BUFFER as isize
-}
-
-enum CpuAccess {
-    None = 0,
-    Read = D3D11_CPU_ACCESS_READ as isize,
-    Write = D3D11_CPU_ACCESS_WRITE as isize
-}
-
-fn create_buffer<T>(bufferType: BufferType, usage: Usage, cpu_access: CpuAccess, initial_data: &[T]) -> ID3D11Buffer {
-    unsafe {
-        let buffer_description = D3D11_BUFFER_DESC {
-            ByteWidth: (mem::size_of::<T>() * initial_data.len()) as u32,
-            Usage: usage as i32,
-            BindFlags: bufferType as u32,
-            CPUAccessFlags: cpu_access as u32,
-            MiscFlags: 0,
-            StructureByteStride: 0
-        };
-    
-        let buffer_subresource = D3D11_SUBRESOURCE_DATA {
-            pSysMem: initial_data.as_ptr() as *mut c_void,
-            SysMemPitch: 0,
-            SysMemSlicePitch: 0
-        };
-    
-        let dx_device = &dx::DX.as_ref().unwrap().device;
-
-        match dx_device.CreateBuffer(&buffer_description, &buffer_subresource) {
-            Ok(id) => id,
-            Err(err) => panic!("Failed to create buffer: {}", err)
-        }
-    }
-}
-
 fn create_swap_chain_description(main_window: isize) -> DXGI_SWAP_CHAIN_DESC {
         // A swap chain represents a chain of off screen textures, in the simplest case
         // a back buffer and front buffer. The back buffer is rendered to whilst the
