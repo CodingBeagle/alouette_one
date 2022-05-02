@@ -40,7 +40,7 @@ VSOut VS(VSIn input)
     // Hardcoded sun light direction in world coordinates
     // Currently a noon-sun (directly overhead)
     // Notice that the light vector is opposite of where the light rays are actually coming from, which would be -1 on the Y axis.
-    float3 sun_light_direction = { 0.0f, 1.0f, 0.0f };
+    float3 sun_light_direction = { 0.0f, 0.5f, -0.5f };
 
     // ** Material parameters **
 
