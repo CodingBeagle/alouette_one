@@ -208,7 +208,7 @@ fn main() {
             1, &back_buffer_render_target_view, &depth_buffer_view);
 
         // GLTF2 Testing
-        let path_to_mill = current_executable_path.parent().unwrap().join("resources\\mill\\mill.gltf");
+        let path_to_mill = current_executable_path.parent().unwrap().join("resources\\mill\\mill2.gltf");
 
         let gltf_file = match gltf2::File::from(path_to_mill) {
             Ok(gltf_file) => gltf_file,
@@ -516,12 +516,12 @@ unsafe fn red(
     let current_renderable_mesh = &renderable_meshes[index as usize];
 
     // Model Matrix
-    let model_matrix = beagle_math::Mat4::translate(&current_renderable_mesh.renderable_mesh_data.translation)
-        //.mul(&current_renderable_mesh.renderable_mesh_data.rotation.to_matrix())
-        //.mul(&beagle_math::Mat4::uniform_scale(1.0));
-        .mul(&beagle_math::Mat4::scale(&current_renderable_mesh.renderable_mesh_data.scale));
-    
-    let combined_matrix = mat.mul(&model_matrix);
+    // TODO: Need to read up on matrix multiplication order AGAIN... still some detail I'm missing. This is not the order I was expecting myself...
+    let model_matrix = beagle_math::Mat4::scale(&current_renderable_mesh.renderable_mesh_data.scale)
+        .mul(&current_renderable_mesh.renderable_mesh_data.rotation.to_matrix())
+        .mul(&beagle_math::Mat4::translate(&current_renderable_mesh.renderable_mesh_data.translation));
+
+    let combined_matrix = model_matrix.mul(&mat);
 
     let mapped_resource = dx_device_context.Map(constant_buffer, 0, D3D11_MAP_WRITE_DISCARD, 0);
     if mapped_resource.is_err() {

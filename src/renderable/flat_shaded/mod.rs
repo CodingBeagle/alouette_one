@@ -101,6 +101,7 @@ impl RenderData {
         let renderable_meshes: Vec<RenderableMeshData> = model.meshes
             .iter()
             .map(|mesh| {
+                let name = mesh.name.clone();
                 let children = mesh.children.clone();
                 let translation = mesh.translation;
                 let scale = mesh.scale;
@@ -116,6 +117,7 @@ impl RenderData {
                 let debug_vertex_normals = RenderData::create_vertex_normal_debug_buffer(&vertex_positions, &vertex_normals);
 
                 RenderableMeshData {
+                    name,
                     children,
                     material,
                     translation,
@@ -203,6 +205,7 @@ impl RenderData {
 }
 
 pub struct RenderableMeshData {
+    pub name: String,
     pub children: Vec<u16>,
     pub material: Material,
     pub translation: beagle_math::Vector3,
