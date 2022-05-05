@@ -38,6 +38,12 @@ struct VertexConstantBuffer {
     specularColor: beagle_math::Vector4,
 }
 
+pub static mut vertex_normal_shader: Option<ID3D11VertexShader> = None;
+pub static mut vertex_normal_shader_input_layout: Option<ID3D11InputLayout> = None;
+
+pub static mut vertex_shader: Option<ID3D11VertexShader> = None;
+pub static mut vertex_shader_input_layout: Option<ID3D11InputLayout> = None;
+
 fn main() {
     unsafe {
         // Path to working directory of executable when running the application
@@ -208,7 +214,7 @@ fn main() {
             1, &back_buffer_render_target_view, &depth_buffer_view);
 
         // GLTF2 Testing
-        let path_to_mill = current_executable_path.parent().unwrap().join("resources\\mill\\mill2.gltf");
+        let path_to_mill = current_executable_path.parent().unwrap().join("resources\\mill\\mill.gltf");
 
         let gltf_file = match gltf2::File::from(path_to_mill) {
             Ok(gltf_file) => gltf_file,
@@ -258,16 +264,16 @@ fn main() {
         // CreateInputLayout requires the compiled vertex shader code.
         // This is because it will actually validate the input signature of the VS function to your element descriptions, to see
         // If it fits.
-        let input_layout_object = match dx_device.CreateInputLayout(
+        vertex_shader_input_layout = match dx_device.CreateInputLayout(
             input_element_descriptions.as_ptr(),
             2,
             compiled_vertex_shader_code.as_ptr() as *const c_void,
             compiled_vertex_shader_code.len()) {
-                Ok(ilo) => ilo,
+                Ok(input_layout) => Some(input_layout),
                 Err(err) => panic!("Failed to create InputLayoutObject: {}", err)
             };
 
-        dx_device_context.IASetInputLayout(&input_layout_object);
+        dx_device_context.IASetInputLayout(&vertex_shader_input_layout);
 
         // We must tell the IA stage how to assemble the vertices into primitives.
         // You do this by specifying a "primitive type" through the Primitive Topology method.
@@ -277,9 +283,9 @@ fn main() {
         let path_to_pixel_shader = current_executable_path.parent().unwrap().join("resources\\shaders\\shaders\\compiled-pixel.shader");
         let compiled_pixel_shader_code = fs::read(path_to_pixel_shader).unwrap();
 
-        let vertex_shader = match dx_device.CreateVertexShader(
+        vertex_shader = match dx_device.CreateVertexShader(
             compiled_vertex_shader_code.as_ptr() as *const c_void, compiled_vertex_shader_code.len(), None) {
-                Ok(vs) => vs,
+                Ok(vs) => Some(vs),
                 Err(err) => panic!("Failed to create vertex shader: {}", err)
             };
 
@@ -315,8 +321,8 @@ fn main() {
         let path_to_vertex_normals_shader = current_executable_path.parent().unwrap().join("resources\\shaders\\shaders\\compiled-vertex-normals.shader");
         let compiled_vertex_normals_shader_code = fs::read(path_to_vertex_normals_shader).unwrap();
 
-        let vertex_normals_shader_input_layout = prepare_vertex_normals_input_layout(&dx_device, &compiled_vertex_normals_shader_code);
-        let vertex_normals_shader = prepare_vertex_normals_shader(&dx_device, &compiled_vertex_normals_shader_code);
+        vertex_normal_shader_input_layout = Some(prepare_vertex_normals_input_layout(&dx_device, &compiled_vertex_normals_shader_code));
+        vertex_normal_shader = Some(prepare_vertex_normals_shader(&dx_device, &compiled_vertex_normals_shader_code));
 
         // The viewport is used by DirectX in the Rasterizer stage, in order to map Normalizerd Device Coordinates Into
         // a 2D surface render target.
@@ -415,27 +421,27 @@ fn main() {
                 }
 
                 if window_helper.is_key_pressed(window::Key::D) {
-                    drone_position_delta.x = 0.1;
+                    drone_position_delta.x = 0.02;
                 }
 
                 if window_helper.is_key_pressed(window::Key::A) {
-                    drone_position_delta.x = -0.1;
+                    drone_position_delta.x = -0.02;
                 }
 
                 if window_helper.is_key_pressed(window::Key::W) {
-                    drone_position_delta.z = 0.1;
+                    drone_position_delta.z = 0.02;
                 }
 
                 if window_helper.is_key_pressed(window::Key::S) {
-                    drone_position_delta.z = -0.1;
+                    drone_position_delta.z = -0.02;
                 }
 
                 if window_helper.is_key_pressed(window::Key::Space) {
-                    drone_position_delta.y = -0.1;
+                    drone_position_delta.y = -0.02;
                 }
 
                 if window_helper.is_key_pressed(window::Key::LeftShift) {
-                    drone_position_delta.y = 0.1;
+                    drone_position_delta.y = 0.02;
                 }
 
                 if window_helper.is_key_pressed(window::Key::Escape) {
@@ -582,7 +588,23 @@ unsafe fn red(
         ]).as_ptr()
     );
 
+    dx_device_context.IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+    dx_device_context.VSSetShader(&vertex_shader, ptr::null(), 0);
+    dx_device_context.IASetInputLayout(&vertex_shader_input_layout);
     dx_device_context.Draw(current_renderable_mesh.renderable_mesh_data.vertex_positions.len() as u32, 0);
+
+    dx_device_context.IASetVertexBuffers(
+        0, 
+        1,
+       ([
+           Some(current_renderable_mesh.debug_vertex_normals_buffer.clone())
+           ]).as_ptr(),
+        [(mem::size_of::<beagle_math::Vector3>() as u32)].as_ptr(),
+        [0].as_ptr());
+    dx_device_context.IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_LINELIST);
+    dx_device_context.VSSetShader(&vertex_normal_shader, ptr::null(), 0);
+    dx_device_context.IASetInputLayout(&vertex_normal_shader_input_layout);
+    dx_device_context.Draw(current_renderable_mesh.renderable_mesh_data.debug_vertex_normals.len() as u32, 0);
 
     if current_renderable_mesh.renderable_mesh_data.children.len() > 0 {
         for child_index in &current_renderable_mesh.renderable_mesh_data.children {

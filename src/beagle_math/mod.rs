@@ -260,6 +260,12 @@ impl Mat4
         self.matrix[index]
     }
 
+    pub fn determinant(mat: &Mat4) -> f32 {
+        return
+            mat.get(0, 0) * ( mat.get(1, 1) * ( mat.get(2, 2) * mat.get(3, 3) - mat.get(2, 3) * mat.get(3, 2) ) )
+            
+    }
+
     pub fn identity() -> Mat4 {
         Mat4 {
             matrix: [
@@ -759,5 +765,20 @@ mod tests {
 
         println!("Quat is:");
         println!("{}, {}, {}, {}", cross.w, cross.v.x, cross.v.y, cross.v.z);
+    }
+
+    #[test]
+    fn should_calculate_determinant_correctly() {
+        let mat = Mat4::new([
+            1.0, 2.0, 3.0, 4.0,
+            4.0, 3.0, 2.0, 1.0,
+            5.0, 4.0, 5.0, 1.0,
+            2.0, 3.0, 1.0, 4.0
+        ]);
+
+        let det = Mat4::determinant(&mat);
+
+        println!("det {}", det);
+        //assert!(det.eq(&25.0f32));
     }
 }

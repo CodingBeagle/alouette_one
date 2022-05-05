@@ -193,7 +193,7 @@ impl RenderData {
                 vert3.z - vert1.z,
             );
 
-            let mut vertex_normal = edge1.cross(&edge2).normalized();
+            let vertex_normal = edge1.cross(&edge2).normalized();
 
             vertex_normals.push(vertex_normal);
             vertex_normals.push(vertex_normal);
